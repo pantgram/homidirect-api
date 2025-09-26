@@ -1,21 +1,113 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
   output   = "../src/generated/prisma"
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider     = "postgresql"
+  url          = env("DATABASE_URL")
   relationMode = "prisma"
 }
 
 model User {
-  id Int @id @default(autoincrement())
-  username Str
+  id                 String     @id @default(uuid())
+  email              String     @unique
+  role               UserRole[]
+  updatedAt          DateTime   @updatedAt
+  username           String     @unique
+  ownedlistings      Listing[]  @relation("Ownedlistings")
+  interestedListings Listing[]  @relation("InterestedListings")
+  tenantBookings     Booking[]  @relation("TenantBookings")
+  landlordBookings   Booking[]  @relation("LandlordBookings")
+}
+
+model Listing {
+  id              Int            @id @default(autoincrement())
+  title           String
+  description     String
+  price           Float
+  pricePerRoom    Boolean        @default(false)
+  maxTenants      Int?
+  shareable       Boolean        @default(false)
+  address         String?
+  city            String
+  postalCode      String?
+  country         String         @default("Greece")
+  bedrooms        Int?
+  bathrooms       Int?
+  area            Float?
+  type            PropertyType
+  available       Boolean        @default(true)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  landlordId      String         @map("landlord_id")
+  bookings        Booking[]      @relation("ListingBookings")
+  tags            Tag[]          @relation("ListingTags")
+  landlord        User           @relation("Ownedlistings", fields: [landlordId], references: [id])
+  interestedUsers User[]         @relation("InterestedListings")
+  images          ListingImage[]
+}
+
+model ListingImage {
+  id        Int     @id @default(autoincrement())
+  url       String
+  listingId Int     @map("listing_id")
+  listing   Listing @relation(fields: [listingId], references: [id])
+}
+
+model Tag {
+  id       Int       @id @default(autoincrement())
+  name     String    @unique
+  listings Listing[] @relation("ListingTags")
+}
+
+model Booking {
+  id          Int           @id @default(autoincrement())
+  status      BookingStatus @default(PENDING)
+  scheduledAt DateTime
+  meetLink    String?       @unique
+  createdAt   DateTime      @default(now())
+  landlordId  String        @map("landlord_id")
+  listingId   Int           @map("listing_id")
+  tenantId    String        @map("tenant_id")
+  tenant      User          @relation("TenantBookings", fields: [tenantId], references: [id])
+  landlord    User          @relation("LandlordBookings", fields: [landlordId], references: [id])
+  listing     Listing       @relation("ListingBookings", fields: [listingId], references: [id])
+}
+
+model InterestedListings {
+  A Int
+  B String
+
+  @@id([A, B], map: "_InterestedListings_AB_pkey")
+  @@index([B], map: "_InterestedListings_B_index")
+  @@map("_InterestedListings")
+}
+
+model ListingTags {
+  A Int
+  B Int
+
+  @@id([A, B], map: "_ListingTags_AB_pkey")
+  @@index([B], map: "_ListingTags_B_index")
+  @@map("_ListingTags")
+}
+
+enum UserRole {
+  LANDLORD
+  TENANT
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  DECLINED
+  CANCELLED
+}
+
+enum PropertyType {
+  APARTMENT
+  HOUSE
+  STUDIO
+  ROOM
 }

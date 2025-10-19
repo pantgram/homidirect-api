@@ -1,30 +1,27 @@
 import Fastify from "fastify";
-import supabaseAuth from "./plugins/supabaseAuth";
-import dotenv from "dotenv";
-import authRoutes from "./routes/auth/auth.routes";
-async function buildServer() {
-  dotenv.config(); // <-- loads .env into process.env
-  const app = Fastify({ logger: true });
+import cors from "@fastify/cors";
+import helmet from "@fastify/helmet";
+import { config } from "./config/env";
+import { userRoutes } from "./modules/users/users.routes";
 
-  // Register Supabase auth plugin
-  await app.register(supabaseAuth);
+export function buildApp() {
+  const fastify = Fastify({
+    logger: {
+      level: config.nodeEnv === "development" ? "info" : "error",
+    },
+  });
+
+  // Register plugins
+  fastify.register(cors);
+  fastify.register(helmet);
 
   // Health check
-  app.get("/health", async () => ({ status: "ok" }));
-  app.register(authRoutes, { prefix: "/auth" });
+  fastify.get("/health", async () => {
+    return { status: "ok", timestamp: new Date().toISOString() };
+  });
 
   // Register routes
+  fastify.register(userRoutes, { prefix: "/api" });
 
-  return app;
+  return fastify;
 }
-
-if (require.main === module) {
-  (async () => {
-    const app = await buildServer();
-    const port = process.env.PORT ? Number(process.env.PORT) : 3000;
-    await app.listen({ port, host: "0.0.0.0" });
-    console.log(`🚀 Server running at http://localhost:${port}`);
-  })();
-}
-
-export default buildServer;

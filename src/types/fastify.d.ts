@@ -2,11 +2,18 @@ import "fastify";
 
 declare module "fastify" {
   interface FastifyInstance {
-    config: {
-      SUPABASE_URL: string;
-      SUPABASE_SERVICE_KEY: string;
-      DATABASE_URL: string;
-      PORT: string;
+    authenticate: (
+      request: FastifyRequest,
+      reply: FastifyReply
+    ) => Promise<void>;
+  }
+
+  interface FastifyRequest {
+    user: {
+      id: number;
+      email: string;
+      iat?: number;
+      exp?: number;
     };
   }
 }

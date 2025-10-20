@@ -11,7 +11,6 @@ const start = async () => {
     });
     console.log(`🚀 Server running on http://localhost:${config.port}`);
     console.log(`📊 Health check: http://localhost:${config.port}/health`);
-    console.log(`👥 Users API: http://localhost:${config.port}/api/users`);
   } catch (err) {
     fastify.log.error(err);
     process.exit(1);

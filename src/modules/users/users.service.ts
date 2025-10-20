@@ -8,7 +8,8 @@ export class UserService {
     const allUsers = await db
       .select({
         id: users.id,
-        name: users.name,
+        firstName: users.firstName,
+        lastName: users.lastName,
         email: users.email,
         createdAt: users.createdAt,
       })
@@ -21,7 +22,8 @@ export class UserService {
     const [user] = await db
       .select({
         id: users.id,
-        name: users.name,
+        firstName: users.firstName,
+        lastName: users.lastName,
         email: users.email,
         createdAt: users.createdAt,
       })
@@ -32,10 +34,11 @@ export class UserService {
     return user || null;
   }
 
-  async createUser(data: CreateUserDTO): Promise<UserResponse> {
+  async createUser(data: NewUser): Promise<UserResponse> {
     const [newUser] = await db.insert(users).values(data).returning({
       id: users.id,
-      name: users.name,
+      firstName: users.firstName,
+      lastName: users.lastName,
       email: users.email,
       createdAt: users.createdAt,
     });
@@ -53,7 +56,8 @@ export class UserService {
       .where(eq(users.id, id))
       .returning({
         id: users.id,
-        name: users.name,
+        firstName: users.firstName,
+        lastName: users.lastName,
         email: users.email,
         createdAt: users.createdAt,
       });

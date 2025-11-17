@@ -5,7 +5,7 @@
     "moduleResolution": "bundler",
     "strict": true,
     "esModuleInterop": true,
-    "outDir": "dist",
+    "outDir": "./dist",
     "baseUrl": "./src",
     "paths": {
       "@/*": ["*"]

@@ -1,9 +1,9 @@
 import { eq } from "drizzle-orm";
-import { db } from "../../config/db";
+import { db } from "config/db";
 import { users, NewUser } from "./users.model";
 import { CreateUserDTO, UpdateUserDTO, UserResponse } from "./users.types";
 
-export class UserService {
+export const UserService = {
   async getAllUsers(): Promise<UserResponse[]> {
     const allUsers = await db
       .select({
@@ -16,7 +16,7 @@ export class UserService {
       .from(users);
 
     return allUsers;
-  }
+  },
 
   async getUserById(id: number): Promise<UserResponse | null> {
     const [user] = await db
@@ -32,7 +32,7 @@ export class UserService {
       .limit(1);
 
     return user || null;
-  }
+  },
 
   async createUser(data: NewUser): Promise<UserResponse> {
     const [newUser] = await db.insert(users).values(data).returning({
@@ -44,7 +44,7 @@ export class UserService {
     });
 
     return newUser;
-  }
+  },
 
   async updateUser(
     id: number,
@@ -63,7 +63,7 @@ export class UserService {
       });
 
     return updatedUser || null;
-  }
+  },
 
   async deleteUser(id: number): Promise<boolean> {
     const result = await db
@@ -72,5 +72,5 @@ export class UserService {
       .returning({ id: users.id });
 
     return result.length > 0;
-  }
-}
+  },
+};

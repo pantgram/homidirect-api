@@ -2,32 +2,52 @@ import { FastifyReply, FastifyRequest } from "fastify";
 import { AuthService } from "./auth.service";
 
 export const AuthController = {
-  async register(req: FastifyRequest, reply: FastifyReply) {
+  async register(
+    req: FastifyRequest<{ Body: RegisterInput }>,
+    reply: FastifyReply
+  ) {
     try {
-      const { email, password, firstName, lastName } = req.body as any;
-      const data = await AuthService.register({
-        email,
-        password,
-        firstName,
-        lastName,
-      });
-      reply.status(201).send(data);
+      const data = await AuthService.register(req.body);
+      return reply.status(201).send(data);
     } catch (err: any) {
-      reply.status(400).send({ message: err.message });
+      req.log.error(err);
+      return reply
+        .status(400)
+        .send({ message: err.message || "Registration failed" });
     }
   },
 
-  async login(req: FastifyRequest, reply: FastifyReply) {
+  async login(req: FastifyRequest<{ Body: LoginInput }>, reply: FastifyReply) {
     try {
-      const { email, password } = req.body as any;
-      const token = await AuthService.login({ email, password });
-      reply.send({ token });
+      const token = await AuthService.login(req.body);
+      return reply.send({ token });
     } catch (err: any) {
-      reply.status(401).send({ message: err.message });
+      req.log.error(err);
+      return reply
+        .status(401)
+        .send({ message: err.message || "Invalid credentials" });
+    }
+  },
+
+  async refresh(
+    req: FastifyRequest<{ Body: RefreshInput }>,
+    reply: FastifyReply
+  ) {
+    try {
+      const tokens = await AuthService.refresh(req.body, req.server);
+      return reply.send({ tokens });
+    } catch (err: any) {
+      req.log.error(err);
+      return reply
+        .status(401)
+        .send({ message: err.message || "Invalid refresh token" });
     }
   },
 
   async me(req: FastifyRequest, reply: FastifyReply) {
-    reply.send(req.user);
+    if (!req.user) {
+      return reply.status(401).send({ message: "Not authenticated" });
+    }
+    return reply.send({ user: req.user });
   },
 };

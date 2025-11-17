@@ -9,3 +9,7 @@ interface LoginInput {
   email: string;
   password: string;
 }
+
+interface RefreshInput {
+  token: string;
+}

@@ -1,8 +1,10 @@
+from typing import TYPE_CHECKING
+
 import sqlalchemy as sa
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+
 from app.config.database import Base
 from app.models.enums import featured_purchase_status_enum
-from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from app.models.listing import Listing

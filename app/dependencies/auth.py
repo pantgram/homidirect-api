@@ -116,19 +116,23 @@ async def verify_listing_ownership(listing_id: int, db: AsyncSession, current_us
     from app.models.listing import Listing
     result = await db.execute(select(Listing.landlord_id).where(Listing.id == listing_id))
     row = result.first()
-    if not row or row[0] != current_user.id:
+    if not row:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Listing not found")
+    if row[0] != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You do not own this listing")
     return current_user
 
 
 async def verify_booking_ownership(booking_id: int, db: AsyncSession, current_user: User) -> User:
-    if current_user.role == "ADMIN":
-        return current_user
     from app.models.booking import Booking
     result = await db.execute(
         select(Booking).where(Booking.id == booking_id)
     )
     booking = result.scalar_one_or_none()
-    if not booking or (booking.candidate_id != current_user.id and booking.landlord_id != current_user.id):
+    if not booking:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Booking not found")
+    if current_user.role == "ADMIN":
+        return current_user
+    if booking.candidate_id != current_user.id and booking.landlord_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You do not have access to this booking")
     return current_user

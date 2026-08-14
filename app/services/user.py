@@ -1,13 +1,15 @@
 from datetime import datetime, timezone
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.models.user import User
 from app.utils.errors import ConflictError
 
 
 async def get_user_by_id(db: AsyncSession, user_id: int):
     result = await db.execute(
-        select(User.id, User.first_name, User.last_name, User.email, User.created_at)
+        select(User.id, User.first_name, User.last_name, User.email, User.role, User.created_at)
         .where(User.id == user_id)
     )
     return result.first()
@@ -27,7 +29,7 @@ async def update_user(db: AsyncSession, user_id: int, data: dict):
         existing = result.first()
         if existing and existing.id != user_id:
             raise ConflictError("Email already exists")
-    
+
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
     if not user:

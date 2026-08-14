@@ -1,11 +1,13 @@
 from urllib.parse import urlencode
+
+import httpx
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-import httpx
+
 from app.config.settings import settings
+from app.dependencies.auth import create_access_token, create_refresh_token
 from app.models.user import User
 from app.utils.errors import ConflictError
-from app.dependencies.auth import create_access_token, create_refresh_token
 
 
 def get_google_auth_url(state: str) -> str:

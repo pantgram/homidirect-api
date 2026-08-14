@@ -1,9 +1,11 @@
 from datetime import datetime, timezone
-from sqlalchemy import select, and_
+
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.models.availability_slot import AvailabilitySlot
 from app.models.listing import Listing
-from app.utils.errors import NotFoundError, ForbiddenError
+from app.utils.errors import ForbiddenError, NotFoundError
 
 
 async def get_slots_by_listing(db: AsyncSession, listing_id: int):

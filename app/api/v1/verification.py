@@ -84,7 +84,7 @@ async def get_history(
 @router.post("/{listing_id}/verification/documents", status_code=201, response_model=VerificationDocumentDetailResponse)
 async def upload_document(
     listing_id: int,
-    document_type: str = Form(...),
+    document_type: str = Form(..., alias="documentType"),
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_role("LANDLORD", "BOTH")),

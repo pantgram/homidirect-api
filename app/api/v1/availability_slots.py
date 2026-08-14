@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config.database import get_db
-from app.dependencies.auth import require_role
+from app.dependencies.auth import get_current_user, require_role
 from app.models.user import User
 from app.schemas.availability_slot import (
     CreateAvailabilitySlotRequest,
@@ -63,7 +63,7 @@ async def update_slot(
     slot_id: int,
     body: UpdateAvailabilitySlotRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_role("LANDLORD", "BOTH", "ADMIN")),
+    current_user: User = Depends(get_current_user),
 ):
     data = body.model_dump(exclude_none=True)
     slot = await slot_service.update_slot(db, slot_id, data, current_user)
@@ -74,6 +74,6 @@ async def update_slot(
 async def delete_slot(
     slot_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_role("LANDLORD", "BOTH", "ADMIN")),
+    current_user: User = Depends(get_current_user),
 ):
     await slot_service.delete_slot(db, slot_id, current_user)

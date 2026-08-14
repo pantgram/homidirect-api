@@ -2,8 +2,8 @@ from fastapi import APIRouter, BackgroundTasks, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config.database import get_db
+from app.config.limiter import limiter
 from app.dependencies.auth import get_current_user
-from app.main import limiter
 from app.models.user import User
 from app.schemas.auth import (
     ForgotPasswordRequest,
@@ -18,7 +18,7 @@ from app.schemas.auth import (
 from app.schemas.common import MessageResponse
 from app.services import auth as auth_service
 
-router = APIRouter(prefix="/auth", tags=["Auth"])
+router = APIRouter(prefix="", tags=["Auth"])
 
 
 @router.post("/register", response_model=RegisterResponse)

@@ -1,10 +1,12 @@
 import time
-from sqlalchemy import select, func, and_
+
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.models.listing_image import ListingImage
-from app.utils.storage import upload_to_r2, delete_from_r2, copy_in_r2, get_key_from_url
-from app.utils.errors import ConflictError, NotFoundError
+
 from app.config.settings import settings
+from app.models.listing_image import ListingImage
+from app.utils.errors import ConflictError
+from app.utils.storage import delete_from_r2, get_key_from_url, upload_to_r2
 
 
 async def get_images_by_listing_id(db: AsyncSession, listing_id: int):

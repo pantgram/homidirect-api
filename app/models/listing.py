@@ -1,8 +1,10 @@
 
 
+from typing import TYPE_CHECKING
+
 import sqlalchemy as sa
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from typing import TYPE_CHECKING
+
 if TYPE_CHECKING:
 
     from app.models.availability_slot import AvailabilitySlot
@@ -23,7 +25,6 @@ from app.models.enums import (
 )
 
 
-
 class Listing(Base):
     __tablename__ = "listings"
 
@@ -37,9 +38,9 @@ class Listing(Base):
     bedrooms: Mapped[int] = mapped_column(sa.Integer, nullable=False, server_default="1")
     bathrooms: Mapped[int] = mapped_column(sa.Integer, nullable=False, server_default="1")
     area: Mapped[float] = mapped_column(sa.Float, nullable=False)
-    elevator: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, server_default="false")
-    parking_space: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, server_default="false")
-    furnished: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, server_default="false")
+    elevator: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, server_default=sa.false())
+    parking_space: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, server_default=sa.false())
+    furnished: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, server_default=sa.false())
     zone_type: Mapped[str] = mapped_column(zone_type_enum, nullable=False, server_default="Residential")
     listing_status: Mapped[str | None] = mapped_column(listing_status_enum)
     date_available: Mapped[sa.Date] = mapped_column(sa.Date, nullable=False, server_default=sa.func.now())
@@ -50,7 +51,7 @@ class Listing(Base):
     latitude: Mapped[float | None] = mapped_column(sa.Float)
     longitude: Mapped[float | None] = mapped_column(sa.Float)
     property_type: Mapped[str] = mapped_column(property_type_enum, nullable=False)
-    available: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, server_default="true")
+    available: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, server_default=sa.true())
     created_at: Mapped[sa.DateTime] = mapped_column(sa.TIMESTAMP, nullable=False, server_default=sa.func.now())
     updated_at: Mapped[sa.DateTime] = mapped_column(sa.TIMESTAMP, nullable=False, server_default=sa.func.now(), onupdate=sa.func.now())
     landlord_id: Mapped[int] = mapped_column(sa.Integer, sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
@@ -58,7 +59,7 @@ class Listing(Base):
     verification_status: Mapped[str] = mapped_column(verification_status_enum, nullable=False, server_default="PENDING")
     verified_at: Mapped[sa.DateTime | None] = mapped_column(sa.TIMESTAMP)
     verified_by: Mapped[int | None] = mapped_column(sa.Integer, sa.ForeignKey("users.id", ondelete="SET NULL"))
-    is_featured: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, server_default="false")
+    is_featured: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, server_default=sa.false())
     featured_until: Mapped[sa.DateTime | None] = mapped_column(sa.TIMESTAMP)
     title_el: Mapped[str] = mapped_column(sa.String(100), nullable=False, server_default="")
     title_en: Mapped[str | None] = mapped_column(sa.String(100))

@@ -51,7 +51,13 @@ async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
 
 
 async def validation_error_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
-    details = [{"path": ".".join(str(p) for p in err["loc"]), "message": err["msg"]} for err in exc.errors()]
+    details = [
+        {
+            "path": ".".join(str(p) for p in err["loc"] if p != "body"),
+            "message": err["msg"],
+        }
+        for err in exc.errors()
+    ]
     return JSONResponse(
         status_code=422,
         content={

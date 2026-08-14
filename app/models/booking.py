@@ -1,13 +1,15 @@
-import sqlalchemy as sa
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-from app.config.database import Base
-from app.models.enums import booking_status_enum
 from typing import TYPE_CHECKING
 
+import sqlalchemy as sa
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.config.database import Base
+from app.models.enums import booking_status_enum
+
 if TYPE_CHECKING:
-    from app.models.user import User
-    from app.models.listing import Listing
     from app.models.availability_slot import AvailabilitySlot
+    from app.models.listing import Listing
+    from app.models.user import User
 
 
 class Booking(Base):

@@ -1,12 +1,14 @@
-import sqlalchemy as sa
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-from app.config.database import Base
 from typing import TYPE_CHECKING
 
+import sqlalchemy as sa
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.config.database import Base
+
 if TYPE_CHECKING:
+    from app.models.booking import Booking
     from app.models.listing import Listing
     from app.models.user import User
-    from app.models.booking import Booking
 
 
 class AvailabilitySlot(Base):
@@ -17,7 +19,7 @@ class AvailabilitySlot(Base):
     landlord_id: Mapped[int] = mapped_column(sa.Integer, sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     start_time: Mapped[sa.DateTime] = mapped_column(sa.TIMESTAMP(timezone=True), nullable=False)
     end_time: Mapped[sa.DateTime] = mapped_column(sa.TIMESTAMP(timezone=True), nullable=False)
-    is_booked: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, server_default="false")
+    is_booked: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, server_default=sa.false())
     created_at: Mapped[sa.DateTime] = mapped_column(sa.TIMESTAMP(timezone=True), nullable=False, server_default=sa.func.now())
 
     listing: Mapped["Listing"] = relationship("Listing", back_populates="availability_slots")

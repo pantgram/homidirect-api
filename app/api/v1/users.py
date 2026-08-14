@@ -4,17 +4,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config.database import get_db
 from app.dependencies.auth import get_current_user, verify_user_ownership
 from app.models.user import User
-from app.schemas.listing import PaginatedListingSearchResponse
 from app.schemas.user import (
-    AddFavoriteResponse,
-    CheckFavoriteResponse,
-    FavoriteIdsResponse,
-    RemoveFavoriteResponse,
     UpdateUserRequest,
     UserDetailResponse,
     UserWithRoleResponse,
 )
-from app.services import favorite as fav_service
 from app.services import user as user_service
 
 router = APIRouter(prefix="/users", tags=["Users"])
@@ -30,54 +24,6 @@ async def get_me(current_user: User = Depends(get_current_user)):
         "role": current_user.role,
         "created_at": current_user.created_at.isoformat() if current_user.created_at else None,
     }
-
-
-@router.get("/favorites", response_model=PaginatedListingSearchResponse)
-async def get_favorites(
-    page: int = 1, limit: int = 15,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    return await fav_service.get_favorites(db, current_user.id, page, limit)
-
-
-@router.get("/favorites/ids", response_model=FavoriteIdsResponse)
-async def get_favorite_ids(
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    ids = await fav_service.get_favorite_ids(db, current_user.id)
-    return {"favorite_ids": ids}
-
-
-@router.get("/favorites/{listing_id}/check", response_model=CheckFavoriteResponse)
-async def check_favorite(
-    listing_id: int,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    is_fav = await fav_service.check_favorite(db, current_user.id, listing_id)
-    return {"is_favorited": is_fav}
-
-
-@router.post("/favorites/{listing_id}", response_model=AddFavoriteResponse)
-async def add_favorite(
-    listing_id: int,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    added = await fav_service.add_favorite(db, current_user.id, listing_id)
-    return {"success": True, "added": added, "message": "Favorite added" if added else "Already favorited"}
-
-
-@router.delete("/favorites/{listing_id}", response_model=RemoveFavoriteResponse)
-async def remove_favorite(
-    listing_id: int,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    await fav_service.remove_favorite(db, current_user.id, listing_id)
-    return {"removed": True}
 
 
 @router.get("/{user_id}", response_model=UserDetailResponse)
@@ -102,6 +48,8 @@ async def update_user(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    if not await user_service.get_user_by_id(db, user_id):
+        raise HTTPException(status_code=404, detail="User not found")
     verify_user_ownership(user_id, current_user)
     data = body.model_dump(exclude_none=True)
     user = await user_service.update_user(db, user_id, data)
@@ -123,6 +71,8 @@ async def delete_user(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    if not await user_service.get_user_by_id(db, user_id):
+        raise HTTPException(status_code=404, detail="User not found")
     verify_user_ownership(user_id, current_user)
     deleted = await user_service.delete_user(db, user_id)
     if not deleted:

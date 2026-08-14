@@ -1,11 +1,13 @@
-import sqlalchemy as sa
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-from app.config.database import Base
 from typing import TYPE_CHECKING
 
+import sqlalchemy as sa
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.config.database import Base
+
 if TYPE_CHECKING:
-    from app.models.user import User
     from app.models.listing import Listing
+    from app.models.user import User
 
 
 class InterestedListing(Base):

@@ -1,14 +1,16 @@
 import hashlib
+import secrets
 from datetime import datetime, timezone
+
 from fastapi import BackgroundTasks
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.dependencies.auth import create_access_token, create_refresh_token
 from app.models.user import User
-from app.utils.hash import hash_password, verify_password
 from app.utils.email import send_password_reset_email
 from app.utils.errors import ConflictError, UnauthorizedError
-from app.dependencies.auth import create_access_token, create_refresh_token
-import secrets
+from app.utils.hash import hash_password, verify_password
 
 
 async def register(db: AsyncSession, first_name: str, last_name: str, email: str, password: str, role: str):
@@ -66,7 +68,8 @@ async def login(db: AsyncSession, email: str, password: str):
 
 
 async def refresh(db: AsyncSession, refresh_token: str):
-    from jose import jwt, JWTError
+    from jose import JWTError, jwt
+
     from app.config.settings import settings
     try:
         payload = jwt.decode(refresh_token, settings.jwt_secret, algorithms=["HS256"])

@@ -1,6 +1,8 @@
 import html
 from email.message import EmailMessage
+
 from aiosmtplib import SMTP
+
 from app.config.settings import settings
 
 

@@ -1,17 +1,17 @@
-from datetime import datetime, timezone
 from fastapi import BackgroundTasks
-from sqlalchemy import select, or_
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.models.booking import Booking
-from app.models.user import User
 from app.models.listing import Listing
-from app.utils.errors import ConflictError, NotFoundError
+from app.models.user import User
 from app.utils.email import (
-    send_booking_created_email,
-    send_booking_confirmed_email,
-    send_booking_declined_email,
     send_booking_cancelled_email,
+    send_booking_confirmed_email,
+    send_booking_created_email,
+    send_booking_declined_email,
 )
+from app.utils.errors import ConflictError, NotFoundError
 
 VALID_TRANSITIONS = {
     "PENDING": ["CONFIRMED", "DECLINED", "CANCELLED"],

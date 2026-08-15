@@ -12,6 +12,6 @@ COPY . .
 EXPOSE 5000
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD uv run  -c "import urllib.request; urllib.request.urlopen('http://localhost:5000/health')" || exit 1
+    CMD uv run  -c "import urllib.request; urllib.request.urlopen('http://localhost:5000/api/v1/health')" || exit 1
 
 CMD ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "5000"]

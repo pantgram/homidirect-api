@@ -24,14 +24,14 @@ class TokenData:
 def create_access_token(data: dict) -> str:
     to_encode = copy.copy(data)
     expire = datetime.now(timezone.utc) + timedelta(minutes=15)
-    to_encode.update({"exp": expire})
+    to_encode.update({"exp": expire, "type": "access"})
     return jwt.encode(to_encode, settings.jwt_secret, algorithm="HS256")
 
 
 def create_refresh_token(data: dict) -> str:
     to_encode = copy.copy(data)
     expire = datetime.now(timezone.utc) + timedelta(days=7)
-    to_encode.update({"exp": expire})
+    to_encode.update({"exp": expire, "type": "refresh"})
     return jwt.encode(to_encode, settings.jwt_secret, algorithm="HS256")
 
 
@@ -43,6 +43,8 @@ async def get_current_user(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
     try:
         payload = jwt.decode(credentials.credentials, settings.jwt_secret, algorithms=["HS256"])
+        if payload.get("type") != "access":
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token type")
         user_id: int = payload.get("id")
         if user_id is None:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
@@ -69,6 +71,8 @@ async def get_optional_user(
         return None
     try:
         payload = jwt.decode(credentials.credentials, settings.jwt_secret, algorithms=["HS256"])
+        if payload.get("type") != "access":
+            return None
         user_id: int = payload.get("id")
         if user_id is None:
             return None

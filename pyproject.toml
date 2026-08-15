@@ -47,6 +47,9 @@ select = ["E", "F", "I", "N", "W"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["app/tests"]
+filterwarnings = [
+    "ignore:.*'asyncio.iscoroutinefunction' is deprecated.*:DeprecationWarning",
+]
 
 [dependency-groups]
 dev = [

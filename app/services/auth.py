@@ -77,6 +77,8 @@ async def refresh(db: AsyncSession, refresh_token: str):
         raise UnauthorizedError("Invalid refresh token")
 
     user_id = payload.get("id")
+    if payload.get("type") != "refresh":
+        raise UnauthorizedError("Invalid token type")
     if not user_id:
         raise UnauthorizedError("Invalid refresh token")
 

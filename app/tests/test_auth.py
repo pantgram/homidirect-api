@@ -181,6 +181,16 @@ class TestRefresh:
         assert response.status_code == 401
         assert "banned" in response.json()["message"]
 
+    async def test_refresh_rejects_access_token(self, client):
+        registered = await register_user(client, email="refresh-access@example.com")
+
+        response = await client.post(
+            f"{API}/auth/refresh", json={"refreshToken": registered["token"]["accessToken"]}
+        )
+
+        assert response.status_code == 401
+        assert response.json()["message"] == "Invalid token type"
+
 
 class TestLogout:
     async def test_logout_revokes_access_token(self, client):
@@ -270,6 +280,44 @@ class TestCurrentUserAuth:
         response = await client.get(f"{API}/users/me", headers={"Authorization": "Bearer garbage"})
 
         assert response.status_code == 401
+
+    async def test_refresh_token_rejected_as_bearer(self, client):
+        registered = await register_user(client, email="bearer-refresh@example.com")
+
+        response = await client.get(
+            f"{API}/users/me",
+            headers={"Authorization": f"Bearer {registered['token']['refreshToken']}"},
+        )
+
+        assert response.status_code == 401
+        assert response.json()["detail"] == "Invalid token type"
+
+    async def test_legacy_token_without_type_claim_rejected(self, client, session):
+        from jose import jwt
+
+        from app.config.settings import settings
+
+        user = await create_db_user(session, email="legacy-token@example.com", role="TENANT")
+        legacy = jwt.encode(
+            {"id": user.id, "email": user.email, "token_version": user.token_version},
+            settings.jwt_secret,
+            algorithm="HS256",
+        )
+
+        response = await client.get(f"{API}/users/me", headers={"Authorization": f"Bearer {legacy}"})
+
+        assert response.status_code == 401
+        assert response.json()["detail"] == "Invalid token type"
+
+    async def test_refresh_token_treated_as_anonymous_for_optional_user(self, client):
+        registered = await register_user(client, email="optional-user@example.com")
+
+        response = await client.get(
+            f"{API}/listings/search",
+            headers={"Authorization": f"Bearer {registered['token']['refreshToken']}"},
+        )
+
+        assert response.status_code == 200
 
     async def test_banned_user_forbidden(self, client, session):
         user = await create_db_user(session, email="banned@example.com", status="ACTIVE")

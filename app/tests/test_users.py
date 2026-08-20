@@ -24,7 +24,7 @@ class TestGetUser:
         response = await client.get(f"{API}/users/999999", headers=tenant_headers)
 
         assert response.status_code == 404
-        assert response.json()["detail"] == "User not found"
+        assert response.json()["message"] == "User not found"
 
     async def test_requires_authentication(self, client):
         response = await client.get(f"{API}/users/1")
@@ -54,7 +54,7 @@ class TestUpdateUser:
         )
 
         assert response.status_code == 403
-        assert response.json()["detail"] == "You can only access your own resources"
+        assert response.json()["message"] == "You can only access your own resources"
 
     async def test_update_email_conflict(self, client, tenant, landlord, tenant_headers):
         response = await client.patch(

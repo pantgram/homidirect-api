@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config.database import get_db
@@ -56,6 +56,4 @@ async def delete_image(
     current_user: User = Depends(require_role("LANDLORD", "BOTH")),
 ):
     await verify_listing_ownership(listing_id, db, current_user)
-    deleted = await img_service.delete_image(db, image_id)
-    if not deleted:
-        raise HTTPException(status_code=404, detail="Image not found")
+    await img_service.delete_image(db, image_id)

@@ -115,7 +115,7 @@ class TestGetSlots:
         response = await client.get(f"{API}/availability-slots/999999")
 
         assert response.status_code == 404
-        assert response.json()["detail"] == "Slot not found"
+        assert response.json()["message"] == "Availability slot not found"
 
 
 class TestUpdateSlot:

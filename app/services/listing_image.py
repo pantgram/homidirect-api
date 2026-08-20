@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config.settings import settings
 from app.models.listing_image import ListingImage
-from app.utils.errors import ConflictError
+from app.utils.errors import ConflictError, NotFoundError
 from app.utils.storage import delete_from_r2, get_key_from_url, upload_to_r2
 
 
@@ -74,7 +74,7 @@ async def upload_pending_image(db: AsyncSession, session_id: str, file_bytes: by
 async def delete_image(db: AsyncSession, image_id: int) -> bool:
     img = await get_image_by_id(db, image_id)
     if not img:
-        return False
+        raise NotFoundError("Image not found")
     delete_from_r2(get_key_from_url(img.url))
     await db.delete(img)
     return True
@@ -83,7 +83,7 @@ async def delete_image(db: AsyncSession, image_id: int) -> bool:
 async def delete_pending_image(db: AsyncSession, image_id: int, session_id: str) -> bool:
     img = await get_image_by_id(db, image_id)
     if not img or img.upload_session_id != session_id or img.listing_id is not None:
-        return False
+        raise NotFoundError("Image not found or does not belong to the session")
     delete_from_r2(get_key_from_url(img.url))
     await db.delete(img)
     return True

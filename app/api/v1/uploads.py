@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config.database import get_db
@@ -64,6 +64,4 @@ async def delete_pending_image(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_role("LANDLORD", "BOTH")),
 ):
-    deleted = await img_service.delete_pending_image(db, image_id, session_id)
-    if not deleted:
-        raise HTTPException(status_code=404, detail="Image not found")
+    await img_service.delete_pending_image(db, image_id, session_id)

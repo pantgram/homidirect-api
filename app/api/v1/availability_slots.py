@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config.database import get_db
@@ -42,8 +42,6 @@ async def get_slots_by_listing(listing_id: int, db: AsyncSession = Depends(get_d
 @router.get("/{slot_id}", response_model=SlotDetailResponse)
 async def get_slot(slot_id: int, db: AsyncSession = Depends(get_db)):
     slot = await slot_service.get_slot_by_id(db, slot_id)
-    if not slot:
-        raise HTTPException(status_code=404, detail="Slot not found")
     return {"slot": _format_slot(slot)}
 
 

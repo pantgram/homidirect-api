@@ -1,4 +1,4 @@
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -120,8 +120,6 @@ async def update_listing(
     await verify_listing_ownership(listing_id, db, current_user)
     data = body.model_dump(exclude_none=True)
     listing = await listing_service.update_listing(db, listing_id, data)
-    if not listing:
-        raise HTTPException(status_code=404, detail="Listing not found")
     return {"listing": listing_to_dict(listing)}
 
 
@@ -132,9 +130,7 @@ async def delete_listing(
     current_user: User = Depends(require_role("LANDLORD", "BOTH")),
 ):
     await verify_listing_ownership(listing_id, db, current_user)
-    deleted = await listing_service.delete_listing(db, listing_id)
-    if not deleted:
-        raise HTTPException(status_code=404, detail="Listing not found")
+    await listing_service.delete_listing(db, listing_id)
 
 
 @router.post("/{listing_id}/contact", response_model=MessageResponse)

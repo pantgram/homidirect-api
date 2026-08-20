@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.listing import Listing
 from app.models.listing_image import ListingImage
+from app.services.listing_image import delete_images_by_listing_id
 from app.utils.errors import NotFoundError
 from app.utils.serializers import get_primary_images, listing_to_dict
 
@@ -44,7 +45,7 @@ async def update_listing(db: AsyncSession, listing_id: int, data: dict):
     result = await db.execute(select(Listing).where(Listing.id == listing_id))
     listing = result.scalar_one_or_none()
     if not listing:
-        return None
+        raise NotFoundError("Listing not found")
 
     for key, value in data.items():
         if value is not None:
@@ -56,16 +57,14 @@ async def update_listing(db: AsyncSession, listing_id: int, data: dict):
 
 
 async def delete_listing(db: AsyncSession, listing_id: int) -> bool:
-    from app.services.listing_image import delete_images_by_listing_id
+    result = await db.execute(select(Listing).where(Listing.id == listing_id))
+    listing = result.scalar_one_or_none()
+    if not listing:
+        raise NotFoundError("Listing not found")
     try:
         await delete_images_by_listing_id(db, listing_id)
     except Exception:
         pass
-
-    result = await db.execute(select(Listing).where(Listing.id == listing_id))
-    listing = result.scalar_one_or_none()
-    if not listing:
-        return False
     await db.delete(listing)
     return True
 

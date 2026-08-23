@@ -138,8 +138,7 @@ class TestGetBookings:
 
         response = await client.get(f"{API}/bookings/listing/{listing['id']}", headers=tenant_headers)
 
-        assert response.status_code == 200
-        assert len(response.json()["bookings"]) == 1
+        assert response.status_code == 403
 
     async def test_unknown_booking(self, client, tenant_headers):
         response = await client.get(f"{API}/bookings/999999", headers=tenant_headers)

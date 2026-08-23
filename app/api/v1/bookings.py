@@ -2,7 +2,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config.database import get_db
-from app.dependencies.auth import get_current_user, verify_booking_ownership
+from app.dependencies.auth import get_current_user, verify_booking_ownership, verify_listing_ownership
 from app.models.user import User
 from app.schemas.booking import BookingDetailResponse, BookingsListResponse, CreateBookingRequest, UpdateBookingRequest
 from app.services import booking as booking_service
@@ -76,6 +76,7 @@ async def get_bookings_by_listing(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    await verify_listing_ownership(listing_id, db, current_user)
     bookings = await booking_service.get_bookings_by_listing(db, listing_id)
     return {"bookings": [_format_booking(b) for b in bookings]}
 

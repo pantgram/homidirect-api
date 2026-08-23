@@ -1,7 +1,7 @@
 from fastapi import BackgroundTasks
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
-
+from app.models.availability_slot import AvailabilitySlot
 from app.models.availability_slot import AvailabilitySlot
 from app.models.booking import Booking
 from app.models.listing import Listing
@@ -153,7 +153,7 @@ async def update_booking(db: AsyncSession, booking_id: int, data: dict,current_u
 
 
 async def delete_booking(db: AsyncSession, booking_id: int, background_tasks: BackgroundTasks) -> bool:
-    from app.models.availability_slot import AvailabilitySlot
+    
 
     result = await db.execute(select(Booking).where(Booking.id == booking_id))
     booking = result.scalar_one_or_none()

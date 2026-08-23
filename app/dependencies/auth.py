@@ -6,7 +6,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-
+from app.models.listing import Listing
 from app.config.database import get_db
 from app.config.settings import settings
 from app.models.user import User
@@ -118,7 +118,7 @@ def verify_user_ownership(user_id: int, current_user: User) -> User:
 async def verify_listing_ownership(listing_id: int, db: AsyncSession, current_user: User) -> User:
     if current_user.role == "ADMIN":
         return current_user
-    from app.models.listing import Listing
+
     result = await db.execute(select(Listing.landlord_id).where(Listing.id == listing_id))
     row = result.first()
     if not row:
@@ -126,6 +126,7 @@ async def verify_listing_ownership(listing_id: int, db: AsyncSession, current_us
     if row[0] != current_user.id:
         raise ForbiddenError("You do not own this listing")
     return current_user
+
 
 
 async def verify_booking_ownership(booking_id: int, db: AsyncSession, current_user: User) -> User:

@@ -1,8 +1,7 @@
-from datetime import datetime, timezone
-
+from datetime import datetime, timezone, time
 from sqlalchemy import and_, asc, desc, func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
-
+from app.utils.storage import copy_in_r2, delete_from_r2, get_key_from_url
 from app.models.listing import Listing
 from app.models.listing_image import ListingImage
 from app.services.listing_image import delete_images_by_listing_id
@@ -241,9 +240,6 @@ async def get_listings_by_landlord(db: AsyncSession, landlord_id: int, page: int
 
 
 async def _associate_images(db: AsyncSession, session_id: str, listing_id: int):
-    import time
-
-    from app.utils.storage import copy_in_r2, delete_from_r2, get_key_from_url
 
     result = await db.execute(
         select(ListingImage).where(ListingImage.upload_session_id == session_id, ListingImage.listing_id == None)

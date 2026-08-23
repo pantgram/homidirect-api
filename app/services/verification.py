@@ -8,7 +8,7 @@ from app.config.settings import settings
 from app.models.listing import Listing
 from app.models.verification_document import VerificationDocument
 from app.models.verification_history import VerificationHistory
-from app.utils.errors import ConflictError, NotFoundError
+from app.utils.errors import ConflictError, NotFoundError, ForbiddenError
 from app.utils.storage import delete_from_r2, get_key_from_url, upload_to_r2
 
 
@@ -108,7 +108,8 @@ async def delete_document(db: AsyncSession, document_id: int, listing_id: int, c
     doc = result.scalar_one_or_none()
     if not doc:
         raise NotFoundError("Document not found")
-
+    if doc.listing_id != listing_id:
+        raise ForbiddenError("Document does not belong on this listing")
     listing_r = await db.execute(select(Listing).where(Listing.id == listing_id))
     listing = listing_r.scalar_one_or_none()
     if listing and listing.verification_status == "APPROVED" and current_user_id != doc.uploaded_by:

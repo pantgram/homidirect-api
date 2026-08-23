@@ -104,6 +104,7 @@ async def create_listing(
 ):
     if current_user.role != "ADMIN":
         body.landlord_id = current_user.id
+    
     data = body.model_dump(exclude={"upload_session_id"}, exclude_none=True)
     upload_session_id = body.upload_session_id
     listing = await listing_service.create_listing(db, data, upload_session_id)

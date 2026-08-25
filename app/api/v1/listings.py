@@ -10,6 +10,7 @@ from app.schemas.common import MessageResponse
 from app.schemas.listing import (
     ContactOwnerRequest,
     CreateListingRequest,
+    DraftListingRequest,
     ListingDetailResponse,
     ListingListResponse,
     ListingStatsResponse,
@@ -91,8 +92,12 @@ async def get_all_listings(db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/{listing_id}", response_model=ListingDetailResponse)
-async def get_listing(listing_id: int, db: AsyncSession = Depends(get_db)):
-    listing = await listing_service.get_listing_by_id(db, listing_id)
+async def get_listing(
+    listing_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User | None = Depends(get_optional_user),
+):
+    listing = await listing_service.get_public_listing(db, listing_id, current_user)
     return {"listing": listing_to_dict(listing)}
 
 
@@ -104,10 +109,34 @@ async def create_listing(
 ):
     if current_user.role != "ADMIN":
         body.landlord_id = current_user.id
-    
-    data = body.model_dump(exclude={"upload_session_id"}, exclude_none=True)
-    upload_session_id = body.upload_session_id
-    listing = await listing_service.create_listing(db, data, upload_session_id)
+
+    data = body.model_dump(exclude_none=True)
+    listing = await listing_service.create_listing(db, data)
+    return {"listing": listing_to_dict(listing)}
+
+
+@router.post("/draft", status_code=201, response_model=ListingDetailResponse)
+async def create_draft_listing(
+    body: DraftListingRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role("LANDLORD", "BOTH")),
+):
+    if current_user.role != "ADMIN":
+        body.landlord_id = current_user.id
+
+    data = body.model_dump(exclude_none=True)
+    listing = await listing_service.create_listing(db, data, publication_status="DRAFT")
+    return {"listing": listing_to_dict(listing)}
+
+
+@router.post("/{listing_id}/publish", response_model=ListingDetailResponse)
+async def publish_listing(
+    listing_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role("LANDLORD", "BOTH")),
+):
+    await verify_listing_ownership(listing_id, db, current_user)
+    listing = await listing_service.publish_listing(db, listing_id)
     return {"listing": listing_to_dict(listing)}
 
 
@@ -142,7 +171,7 @@ async def contact_owner(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    listing = await listing_service.get_listing_by_id(db, listing_id)
+    listing = await listing_service.get_public_listing(db, listing_id, current_user)
     landlord_r = await db.execute(select(UserModel).where(UserModel.id == listing.landlord_id))
     landlord = landlord_r.scalar_one_or_none()
     if landlord:

@@ -126,6 +126,9 @@ async def review_verification(db: AsyncSession, listing_id: int, status: str, no
     if not listing:
         raise NotFoundError("Listing not found")
 
+    if listing.publication_status != "ACTIVE":
+        raise ConflictError("Listing must be published before verification")
+
     previous = listing.verification_status
     listing.verification_status = status
     listing.verified_at = datetime.now(timezone.utc) if status == "APPROVED" else None
@@ -149,7 +152,7 @@ async def get_pending_verifications(db: AsyncSession):
     result = await db.execute(
         select(Listing)
         .options(selectinload(Listing.verification_documents))
-        .where(Listing.verification_status == "PENDING")
+        .where(Listing.verification_status == "PENDING", Listing.publication_status == "ACTIVE")
     )
     listings = result.scalars().all()
 

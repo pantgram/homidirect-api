@@ -49,6 +49,7 @@ class ListingResponse(CamelModel):
     title_en: str | None
     description_el: str
     description_en: str | None
+    publication_status: str
 
 
 class ListingSearchResponse(ListingResponse):
@@ -80,7 +81,37 @@ class CreateListingRequest(CamelModel):
     available: bool | None = None
     landlord_id: int
     landlord_phone: str | None = None
-    upload_session_id: str | None = None
+    title_el: str
+    title_en: str | None = None
+    description_el: str | None = None
+    description_en: str | None = None
+
+
+class DraftListingRequest(CamelModel):
+    price: float
+    city: str
+    postal_code: str | None = None
+    floor: str | None = None
+    levels: int | None = None
+    kitchens: int | None = None
+    bedrooms: int | None = None
+    bathrooms: int | None = None
+    area: float | None = None
+    elevator: bool | None = None
+    parking_space: bool | None = None
+    furnished: bool | None = None
+    zone_type: str | None = None
+    listing_status: str | None = None
+    date_available: date | None = None
+    date_built: int | None = None
+    country: str | None = None
+    address: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    property_type: str
+    available: bool | None = None
+    landlord_id: int
+    landlord_phone: str | None = None
     title_el: str
     title_en: str | None = None
     description_el: str | None = None

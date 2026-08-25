@@ -63,4 +63,5 @@ def listing_to_dict(listing: Listing) -> dict:
         "title_en": listing.title_en,
         "description_el": listing.description_el,
         "description_en": listing.description_en,
+        "publication_status": listing.publication_status,
     }

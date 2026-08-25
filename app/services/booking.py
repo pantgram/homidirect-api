@@ -45,7 +45,9 @@ async def get_booking_by_id(db: AsyncSession, booking_id: int):
 
 
 async def create_booking(db: AsyncSession, data: dict, current_user, background_tasks: BackgroundTasks):
-    listing_result = await db.execute(select(Listing).where(Listing.id == data["listing_id"]))
+    listing_result = await db.execute(
+        select(Listing).where(Listing.id == data["listing_id"], Listing.publication_status == "ACTIVE")
+    )
     listing = listing_result.scalar_one_or_none()
     if not listing:
         raise NotFoundError("Listing not found")

@@ -20,6 +20,7 @@ from app.models.enums import (
     floors_enum,
     listing_status_enum,
     property_type_enum,
+    publication_status_enum,
     verification_status_enum,
     zone_type_enum,
 )
@@ -43,6 +44,7 @@ class Listing(Base):
     furnished: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, server_default=sa.false())
     zone_type: Mapped[str] = mapped_column(zone_type_enum, nullable=False, server_default="Residential")
     listing_status: Mapped[str | None] = mapped_column(listing_status_enum)
+    publication_status: Mapped[str] = mapped_column(publication_status_enum, nullable=False, server_default="ACTIVE")
     date_available: Mapped[sa.Date] = mapped_column(sa.Date, nullable=False, server_default=sa.func.now())
     date_built: Mapped[int] = mapped_column(sa.Integer, nullable=False, server_default=sa.text("EXTRACT(YEAR FROM CURRENT_DATE)::INTEGER"))
     views_count: Mapped[int] = mapped_column("views_count", sa.Integer, nullable=False, server_default="0")
@@ -96,6 +98,7 @@ class Listing(Base):
         sa.Index("listings_area_idx", "area"),
         sa.Index("listings_available_idx", "available"),
         sa.Index("listings_created_at_idx", "created_at"),
+        sa.Index("listings_publication_status_idx", "publication_status"),
         sa.Index("listings_country_idx", "country"),
         sa.Index("listings_available_featured_idx", "available", "is_featured"),
         sa.Index("listings_city_price_idx", "city", "price"),

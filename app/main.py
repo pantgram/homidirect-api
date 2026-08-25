@@ -39,7 +39,6 @@ openapi_tags = [
     {"name": "Listing Images", "description": "Image uploads attached to existing listings"},
     {"name": "Verification", "description": "Listing verification documents, status, and history"},
     {"name": "Admin Verification", "description": "Admin review of listing verifications"},
-    {"name": "Uploads", "description": "Pending image upload sessions for listing creation"},
     {"name": "Favorites", "description": "Saved listings"},
     {"name": "Bookings", "description": "Listing visit bookings"},
     {"name": "Availability Slots", "description": "Bookable time slots for listings"},

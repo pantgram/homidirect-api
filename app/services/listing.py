@@ -1,22 +1,30 @@
-from datetime import datetime, timezone, time
+from datetime import datetime, timezone
+
 from sqlalchemy import and_, asc, desc, func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.utils.storage import copy_in_r2, delete_from_r2, get_key_from_url
+
 from app.models.listing import Listing
-from app.models.listing_image import ListingImage
 from app.services.listing_image import delete_images_by_listing_id
-from app.utils.errors import NotFoundError
+from app.utils.errors import ConflictError, NotFoundError, ValidationError
 from app.utils.serializers import get_primary_images, listing_to_dict
 
 
 async def get_stats(db: AsyncSession):
-    r1 = await db.execute(select(func.count()).select_from(Listing).where(Listing.available == True))
-    r2 = await db.execute(select(func.count(func.distinct(Listing.landlord_id))).select_from(Listing))
+    r1 = await db.execute(
+        select(func.count())
+        .select_from(Listing)
+        .where(Listing.available == True, Listing.publication_status == "ACTIVE")
+    )
+    r2 = await db.execute(
+        select(func.count(func.distinct(Listing.landlord_id)))
+        .select_from(Listing)
+        .where(Listing.publication_status == "ACTIVE")
+    )
     return {"active_listings_count": r1.scalar() or 0, "property_owners_count": r2.scalar() or 0}
 
 
 async def get_all_listings(db: AsyncSession):
-    result = await db.execute(select(Listing))
+    result = await db.execute(select(Listing).where(Listing.publication_status == "ACTIVE"))
     return result.scalars().all()
 
 
@@ -28,15 +36,23 @@ async def get_listing_by_id(db: AsyncSession, listing_id: int):
     return listing
 
 
-async def create_listing(db: AsyncSession, data: dict, upload_session_id: str | None = None):
-    listing = Listing(**data)
+async def get_public_listing(db: AsyncSession, listing_id: int, current_user):
+    listing = await get_listing_by_id(db, listing_id)
+    if listing.publication_status != "ACTIVE":
+        is_owner = current_user is not None and listing.landlord_id == current_user.id
+        is_admin = current_user is not None and current_user.role == "ADMIN"
+        if not (is_owner or is_admin):
+            raise NotFoundError("Listing not found")
+    return listing
+
+
+async def create_listing(
+    db: AsyncSession, data: dict, publication_status: str = "ACTIVE"
+):
+    listing = Listing(**data, publication_status=publication_status)
     db.add(listing)
     await db.flush()
     await db.refresh(listing)
-
-    if upload_session_id:
-        await _associate_images(db, upload_session_id, listing.id)
-
     return listing
 
 
@@ -68,6 +84,30 @@ async def delete_listing(db: AsyncSession, listing_id: int) -> bool:
     return True
 
 
+_REQUIRED_FIELDS = ("price", "city", "area", "property_type", "title_el")
+
+
+def _validate_publishable(listing: Listing):
+    missing = [
+        name for name in _REQUIRED_FIELDS
+        if getattr(listing, name) is None or getattr(listing, name) == ""
+    ]
+    if missing:
+        raise ValidationError(f"Listing cannot be published: missing required fields: {', '.join(missing)}")
+
+
+async def publish_listing(db: AsyncSession, listing_id: int):
+    listing = await get_listing_by_id(db, listing_id)
+    if listing.publication_status == "ACTIVE":
+        raise ConflictError("Listing is already published")
+    _validate_publishable(listing)
+    listing.publication_status = "ACTIVE"
+    listing.updated_at = datetime.now(timezone.utc)
+    await db.flush()
+    await db.refresh(listing)
+    return listing
+
+
 async def search_listings(db: AsyncSession, params: dict, is_authenticated: bool = False):
     q = params.get("q")
     limit = min(params.get("limit", 15), 100 if is_authenticated else 15)
@@ -76,7 +116,7 @@ async def search_listings(db: AsyncSession, params: dict, is_authenticated: bool
 
     query = select(Listing)
     count_query = select(func.count()).select_from(Listing)
-    conditions = []
+    conditions = [Listing.publication_status == "ACTIVE"]
 
     if q:
         search = f"%{q}%"
@@ -201,7 +241,9 @@ async def search_listings(db: AsyncSession, params: dict, is_authenticated: bool
 
 async def get_distinct_cities(db: AsyncSession):
     result = await db.execute(
-        select(Listing.city).distinct().where(Listing.available == True).order_by(Listing.city)
+        select(Listing.city).distinct().where(
+            Listing.available == True, Listing.publication_status == "ACTIVE"
+        ).order_by(Listing.city)
     )
     return [r[0] for r in result.all()]
 
@@ -237,21 +279,3 @@ async def get_listings_by_landlord(db: AsyncSession, landlord_id: int, page: int
             "has_previous_page": page > 1,
         },
     }
-
-
-async def _associate_images(db: AsyncSession, session_id: str, listing_id: int):
-
-    result = await db.execute(
-        select(ListingImage).where(ListingImage.upload_session_id == session_id, ListingImage.listing_id == None)
-    )
-    pending = result.scalars().all()
-
-    for img in pending:
-        old_key = get_key_from_url(img.url)
-        filename = old_key.split("/")[-1]
-        new_key = f"listings/{listing_id}/{int(time.time() * 1000)}-{filename}"
-        new_url = copy_in_r2(old_key, new_key)
-        delete_from_r2(old_key)
-        img.url = new_url
-        img.listing_id = listing_id
-        img.upload_session_id = None

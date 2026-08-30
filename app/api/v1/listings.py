@@ -10,7 +10,6 @@ from app.schemas.common import MessageResponse
 from app.schemas.listing import (
     ContactOwnerRequest,
     CreateListingRequest,
-    DraftListingRequest,
     ListingDetailResponse,
     ListingListResponse,
     ListingStatsResponse,
@@ -113,32 +112,6 @@ async def create_listing(
     data = body.model_dump(exclude_none=True)
     listing = await listing_service.create_listing(db, data)
     return {"listing": listing_to_dict(listing)}
-
-
-@router.post("/draft", status_code=201, response_model=ListingDetailResponse)
-async def create_draft_listing(
-    body: DraftListingRequest,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_role("LANDLORD", "BOTH")),
-):
-    if current_user.role != "ADMIN":
-        body.landlord_id = current_user.id
-
-    data = body.model_dump(exclude_none=True)
-    listing = await listing_service.create_listing(db, data, publication_status="DRAFT")
-    return {"listing": listing_to_dict(listing)}
-
-
-@router.post("/{listing_id}/publish", response_model=ListingDetailResponse)
-async def publish_listing(
-    listing_id: int,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_role("LANDLORD", "BOTH")),
-):
-    await verify_listing_ownership(listing_id, db, current_user)
-    listing = await listing_service.publish_listing(db, listing_id)
-    return {"listing": listing_to_dict(listing)}
-
 
 @router.patch("/{listing_id}", response_model=ListingDetailResponse)
 async def update_listing(

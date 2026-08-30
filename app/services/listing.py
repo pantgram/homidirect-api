@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.listing import Listing
 from app.services.listing_image import delete_images_by_listing_id
-from app.utils.errors import ConflictError, NotFoundError, ValidationError
+from app.utils.errors import NotFoundError
 from app.utils.serializers import get_primary_images, listing_to_dict
 
 
@@ -47,9 +47,9 @@ async def get_public_listing(db: AsyncSession, listing_id: int, current_user):
 
 
 async def create_listing(
-    db: AsyncSession, data: dict, publication_status: str = "ACTIVE"
+    db: AsyncSession, data: dict
 ):
-    listing = Listing(**data, publication_status=publication_status)
+    listing = Listing(**data)
     db.add(listing)
     await db.flush()
     await db.refresh(listing)
@@ -82,31 +82,6 @@ async def delete_listing(db: AsyncSession, listing_id: int) -> bool:
         pass
     await db.delete(listing)
     return True
-
-
-_REQUIRED_FIELDS = ("price", "city", "area", "property_type", "title_el")
-
-
-def _validate_publishable(listing: Listing):
-    missing = [
-        name for name in _REQUIRED_FIELDS
-        if getattr(listing, name) is None or getattr(listing, name) == ""
-    ]
-    if missing:
-        raise ValidationError(f"Listing cannot be published: missing required fields: {', '.join(missing)}")
-
-
-async def publish_listing(db: AsyncSession, listing_id: int):
-    listing = await get_listing_by_id(db, listing_id)
-    if listing.publication_status == "ACTIVE":
-        raise ConflictError("Listing is already published")
-    _validate_publishable(listing)
-    listing.publication_status = "ACTIVE"
-    listing.updated_at = datetime.now(timezone.utc)
-    await db.flush()
-    await db.refresh(listing)
-    return listing
-
 
 async def search_listings(db: AsyncSession, params: dict, is_authenticated: bool = False):
     q = params.get("q")

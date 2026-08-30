@@ -53,8 +53,8 @@ class TestUpdateUser:
             headers=tenant_headers,
         )
 
-        assert response.status_code == 403
-        assert response.json()["message"] == "You can only access your own resources"
+        assert response.status_code == 404
+        assert response.json()["message"] == "User not found"
 
     async def test_update_email_conflict(self, client, tenant, landlord, tenant_headers):
         response = await client.patch(
@@ -87,9 +87,10 @@ class TestDeleteUser:
 
         assert response.status_code == 204
 
-        login = await client.post(
-            f"{API}/auth/login", json={"email": "tenant@example.com", "password": "Password123"}
-        )
+    async def test_login_after_account_deletion(self, client, tenant, tenant_headers):
+        await client.delete(f"{API}/users/{tenant['user']['id']}", headers=tenant_headers)
+        login = await client.post(f"{API}/auth/login", json={"email": "tenant@example.com", "password": "Password123"})
+
         assert login.status_code == 401
 
     async def test_cannot_delete_other_user(self, client, landlord, tenant_headers):
@@ -97,7 +98,7 @@ class TestDeleteUser:
             f"{API}/users/{landlord['user']['id']}", headers=tenant_headers
         )
 
-        assert response.status_code == 403
+        assert response.status_code == 404
 
     async def test_delete_unknown_user(self, client, tenant_headers):
         response = await client.delete(f"{API}/users/999999", headers=tenant_headers)

@@ -1,8 +1,11 @@
 from datetime import date, datetime
+from typing import Literal
 
 from app.schemas.base import CamelModel
 from app.schemas.common import Pagination
 
+status = Literal["ACTIVE", "DRAFT"]
+floors = Literal["basement", "semi-basement", "ground", "1st", "2nd", "3rd", "4th", "5th", "6th+"]
 
 class ListingImageBasic(CamelModel):
     id: int
@@ -16,7 +19,7 @@ class ListingResponse(CamelModel):
     price: float
     city: str
     postal_code: str | None
-    floor: str
+    floor: floors
     levels: int
     kitchens: int
     bedrooms: int
@@ -49,7 +52,7 @@ class ListingResponse(CamelModel):
     title_en: str | None
     description_el: str
     description_en: str | None
-    publication_status: str
+    publication_status: status | None
 
 
 class ListingSearchResponse(ListingResponse):
@@ -60,7 +63,7 @@ class CreateListingRequest(CamelModel):
     price: float
     city: str
     postal_code: str | None = None
-    floor: str | None = None
+    floor: floors | None = None
     levels: int | None = None
     kitchens: int | None = None
     bedrooms: int | None = None
@@ -85,44 +88,13 @@ class CreateListingRequest(CamelModel):
     title_en: str | None = None
     description_el: str | None = None
     description_en: str | None = None
-
-
-class DraftListingRequest(CamelModel):
-    price: float
-    city: str
-    postal_code: str | None = None
-    floor: str | None = None
-    levels: int | None = None
-    kitchens: int | None = None
-    bedrooms: int | None = None
-    bathrooms: int | None = None
-    area: float | None = None
-    elevator: bool | None = None
-    parking_space: bool | None = None
-    furnished: bool | None = None
-    zone_type: str | None = None
-    listing_status: str | None = None
-    date_available: date | None = None
-    date_built: int | None = None
-    country: str | None = None
-    address: str | None = None
-    latitude: float | None = None
-    longitude: float | None = None
-    property_type: str
-    available: bool | None = None
-    landlord_id: int
-    landlord_phone: str | None = None
-    title_el: str
-    title_en: str | None = None
-    description_el: str | None = None
-    description_en: str | None = None
-
+    publication_status: status | None = None
 
 class UpdateListingRequest(CamelModel):
     price: float | None = None
     city: str | None = None
     postal_code: str | None = None
-    floor: str | None = None
+    floor: floors | None = None
     levels: int | None = None
     kitchens: int | None = None
     bedrooms: int | None = None
@@ -146,6 +118,7 @@ class UpdateListingRequest(CamelModel):
     title_en: str | None = None
     description_el: str | None = None
     description_en: str | None = None
+    publication_status: status | None = None
 
 
 class SearchListingsParams(CamelModel):
@@ -154,7 +127,7 @@ class SearchListingsParams(CamelModel):
     city: str | None = None
     region: str | None = None
     country: str | None = None
-    floor: str | None = None
+    floor: floors | None = None
     min_price: float | None = None
     max_price: float | None = None
     min_bedrooms: int | None = None

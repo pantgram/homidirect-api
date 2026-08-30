@@ -6,9 +6,10 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.models.listing import Listing
+
 from app.config.database import get_db
 from app.config.settings import settings
+from app.models.listing import Listing
 from app.models.user import User
 from app.utils.errors import ForbiddenError, NotFoundError, UnauthorizedError
 
@@ -111,7 +112,7 @@ def verify_user_ownership(user_id: int, current_user: User) -> User:
     if current_user.role == "ADMIN":
         return current_user
     if current_user.id != user_id:
-        raise ForbiddenError("You can only access your own resources")
+        raise NotFoundError("User not found")
     return current_user
 
 

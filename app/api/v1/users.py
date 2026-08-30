@@ -28,6 +28,7 @@ async def get_me(current_user: User = Depends(get_current_user)):
 
 @router.get("/{user_id}", response_model=UserDetailResponse)
 async def get_user(user_id: int, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+    verify_user_ownership(user_id, current_user)
     row = await user_service.get_user_by_id(db, user_id)
     return {"user": {
         "id": row.id,

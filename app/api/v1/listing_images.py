@@ -60,5 +60,5 @@ async def delete_image(
     current_user: User = Depends(require_role("LANDLORD", "BOTH")),
 ):
     await verify_listing_ownership(listing_id, db, current_user)
-    
-    await img_service.delete_image(db, image_id)
+
+    await img_service.delete_image(db, image_id,listing_id)

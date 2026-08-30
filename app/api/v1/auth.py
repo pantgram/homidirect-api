@@ -40,7 +40,8 @@ async def refresh(body: RefreshTokenRequest, db: AsyncSession = Depends(get_db))
 
 @router.post("/forgot-password", response_model=MessageResponse)
 @limiter.limit("3/minute")
-async def forgot_password(request: Request, body: ForgotPasswordRequest, background_tasks: BackgroundTasks, db: AsyncSession = Depends(get_db)):
+async def forgot_password(request: Request, body: ForgotPasswordRequest,
+    background_tasks: BackgroundTasks, db: AsyncSession = Depends(get_db)):
     return await auth_service.forgot_password(db, body.email, background_tasks)
 
 

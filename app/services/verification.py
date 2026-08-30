@@ -8,7 +8,7 @@ from app.config.settings import settings
 from app.models.listing import Listing
 from app.models.verification_document import VerificationDocument
 from app.models.verification_history import VerificationHistory
-from app.utils.errors import ConflictError, NotFoundError, ForbiddenError
+from app.utils.errors import ConflictError, ForbiddenError, NotFoundError
 from app.utils.storage import delete_from_r2, get_key_from_url, upload_to_r2
 
 

@@ -139,6 +139,7 @@ def listing_payload(**overrides) -> dict:
         "descriptionEl": "Φωτεινό διαμέρισμα στο κέντρο",
         "landlordId": 0,
         "landlordPhone": "+306900000000",
+        "publicationStatus": "ACTIVE",
     }
     payload.update(overrides)
     return payload

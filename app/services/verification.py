@@ -8,7 +8,7 @@ from app.config.settings import settings
 from app.models.listing import Listing
 from app.models.verification_document import VerificationDocument
 from app.models.verification_history import VerificationHistory
-from app.utils.errors import ConflictError, NotFoundError
+from app.utils.errors import ConflictError, ForbiddenError, NotFoundError
 from app.utils.storage import delete_from_r2, get_key_from_url, upload_to_r2
 
 
@@ -108,7 +108,8 @@ async def delete_document(db: AsyncSession, document_id: int, listing_id: int, c
     doc = result.scalar_one_or_none()
     if not doc:
         raise NotFoundError("Document not found")
-
+    if doc.listing_id != listing_id:
+        raise ForbiddenError("Document does not belong on this listing")
     listing_r = await db.execute(select(Listing).where(Listing.id == listing_id))
     listing = listing_r.scalar_one_or_none()
     if listing and listing.verification_status == "APPROVED" and current_user_id != doc.uploaded_by:
@@ -124,6 +125,9 @@ async def review_verification(db: AsyncSession, listing_id: int, status: str, no
     listing = listing_r.scalar_one_or_none()
     if not listing:
         raise NotFoundError("Listing not found")
+
+    if listing.publication_status != "ACTIVE":
+        raise ConflictError("Listing must be published before verification")
 
     previous = listing.verification_status
     listing.verification_status = status
@@ -148,7 +152,7 @@ async def get_pending_verifications(db: AsyncSession):
     result = await db.execute(
         select(Listing)
         .options(selectinload(Listing.verification_documents))
-        .where(Listing.verification_status == "PENDING")
+        .where(Listing.verification_status == "PENDING", Listing.publication_status == "ACTIVE")
     )
     listings = result.scalars().all()
 

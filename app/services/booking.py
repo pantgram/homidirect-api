@@ -2,6 +2,7 @@ from fastapi import BackgroundTasks
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.availability_slot import AvailabilitySlot
 from app.models.booking import Booking
 from app.models.listing import Listing
 from app.models.user import User
@@ -37,13 +38,16 @@ async def get_bookings_by_listing(db: AsyncSession, listing_id: int):
 
 async def get_booking_by_id(db: AsyncSession, booking_id: int):
     result = await db.execute(select(Booking).where(Booking.id == booking_id))
-    return result.scalar_one_or_none()
+    booking = result.scalar_one_or_none()
+    if not booking:
+        raise NotFoundError("Booking not found")
+    return booking
 
 
 async def create_booking(db: AsyncSession, data: dict, current_user, background_tasks: BackgroundTasks):
-    from app.models.availability_slot import AvailabilitySlot
-
-    listing_result = await db.execute(select(Listing).where(Listing.id == data["listing_id"]))
+    listing_result = await db.execute(
+        select(Listing).where(Listing.id == data["listing_id"], Listing.publication_status == "ACTIVE")
+    )
     listing = listing_result.scalar_one_or_none()
     if not listing:
         raise NotFoundError("Listing not found")
@@ -100,7 +104,7 @@ async def update_booking(db: AsyncSession, booking_id: int, data: dict,current_u
     result = await db.execute(select(Booking).where(Booking.id == booking_id))
     booking = result.scalar_one_or_none()
     if not booking:
-        return None
+        raise NotFoundError("Booking not found")
 
     if data.get("status"):
         new_status = data["status"]
@@ -151,12 +155,12 @@ async def update_booking(db: AsyncSession, booking_id: int, data: dict,current_u
 
 
 async def delete_booking(db: AsyncSession, booking_id: int, background_tasks: BackgroundTasks) -> bool:
-    from app.models.availability_slot import AvailabilitySlot
+
 
     result = await db.execute(select(Booking).where(Booking.id == booking_id))
     booking = result.scalar_one_or_none()
     if not booking:
-        return False
+        raise NotFoundError("Booking not found")
 
     try:
         if booking.availability_slot_id:

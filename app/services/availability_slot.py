@@ -28,7 +28,10 @@ async def get_available_slots(db: AsyncSession, listing_id: int):
 
 async def get_slot_by_id(db: AsyncSession, slot_id: int):
     result = await db.execute(select(AvailabilitySlot).where(AvailabilitySlot.id == slot_id))
-    return result.scalar_one_or_none()
+    slot = result.scalar_one_or_none()
+    if not slot:
+        raise NotFoundError("Availability slot not found")
+    return slot
 
 
 async def create_slot(db: AsyncSession, data: dict, current_user):
@@ -49,8 +52,6 @@ async def create_slot(db: AsyncSession, data: dict, current_user):
 
 async def update_slot(db: AsyncSession, slot_id: int, data: dict, current_user):
     slot = await get_slot_by_id(db, slot_id)
-    if not slot:
-        raise NotFoundError("Availability slot not found")
     if current_user.role != "ADMIN" and slot.landlord_id != current_user.id:
         raise ForbiddenError("You do not own this slot")
 
@@ -64,8 +65,6 @@ async def update_slot(db: AsyncSession, slot_id: int, data: dict, current_user):
 
 async def delete_slot(db: AsyncSession, slot_id: int, current_user) -> bool:
     slot = await get_slot_by_id(db, slot_id)
-    if not slot:
-        raise NotFoundError("Availability slot not found")
     if current_user.role != "ADMIN" and slot.landlord_id != current_user.id:
         raise ForbiddenError("You do not own this slot")
     await db.delete(slot)

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -91,8 +91,12 @@ async def get_all_listings(db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/{listing_id}", response_model=ListingDetailResponse)
-async def get_listing(listing_id: int, db: AsyncSession = Depends(get_db)):
-    listing = await listing_service.get_listing_by_id(db, listing_id)
+async def get_listing(
+    listing_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User | None = Depends(get_optional_user),
+):
+    listing = await listing_service.get_public_listing(db, listing_id, current_user)
     return {"listing": listing_to_dict(listing)}
 
 
@@ -104,11 +108,10 @@ async def create_listing(
 ):
     if current_user.role != "ADMIN":
         body.landlord_id = current_user.id
-    data = body.model_dump(exclude={"upload_session_id"}, exclude_none=True)
-    upload_session_id = body.upload_session_id
-    listing = await listing_service.create_listing(db, data, upload_session_id)
-    return {"listing": listing_to_dict(listing)}
 
+    data = body.model_dump(exclude_none=True)
+    listing = await listing_service.create_listing(db, data)
+    return {"listing": listing_to_dict(listing)}
 
 @router.patch("/{listing_id}", response_model=ListingDetailResponse)
 async def update_listing(
@@ -120,8 +123,6 @@ async def update_listing(
     await verify_listing_ownership(listing_id, db, current_user)
     data = body.model_dump(exclude_none=True)
     listing = await listing_service.update_listing(db, listing_id, data)
-    if not listing:
-        raise HTTPException(status_code=404, detail="Listing not found")
     return {"listing": listing_to_dict(listing)}
 
 
@@ -132,9 +133,7 @@ async def delete_listing(
     current_user: User = Depends(require_role("LANDLORD", "BOTH")),
 ):
     await verify_listing_ownership(listing_id, db, current_user)
-    deleted = await listing_service.delete_listing(db, listing_id)
-    if not deleted:
-        raise HTTPException(status_code=404, detail="Listing not found")
+    await listing_service.delete_listing(db, listing_id)
 
 
 @router.post("/{listing_id}/contact", response_model=MessageResponse)
@@ -145,7 +144,7 @@ async def contact_owner(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    listing = await listing_service.get_listing_by_id(db, listing_id)
+    listing = await listing_service.get_public_listing(db, listing_id, current_user)
     landlord_r = await db.execute(select(UserModel).where(UserModel.id == listing.landlord_id))
     landlord = landlord_r.scalar_one_or_none()
     if landlord:

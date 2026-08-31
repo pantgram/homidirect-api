@@ -1,8 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config.database import get_db
-from app.dependencies.auth import get_current_user, require_role
+from app.dependencies.auth import get_current_user, get_optional_user, require_role
 from app.models.user import User
 from app.schemas.availability_slot import (
     CreateAvailabilitySlotRequest,
@@ -11,6 +11,7 @@ from app.schemas.availability_slot import (
     UpdateAvailabilitySlotRequest,
 )
 from app.services import availability_slot as slot_service
+from app.services import listing as listing_service
 
 router = APIRouter(prefix="/availability-slots", tags=["Availability Slots"])
 
@@ -28,7 +29,12 @@ def _format_slot(s):
 
 
 @router.get("/listing/{listing_id}/available", response_model=SlotsListResponse)
-async def get_available_slots(listing_id: int, db: AsyncSession = Depends(get_db)):
+async def get_available_slots(
+    listing_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User | None = Depends(get_optional_user),
+):
+    await listing_service.get_public_listing(db, listing_id, current_user)
     slots = await slot_service.get_available_slots(db, listing_id)
     return {"slots": [_format_slot(s) for s in slots]}
 
@@ -42,8 +48,6 @@ async def get_slots_by_listing(listing_id: int, db: AsyncSession = Depends(get_d
 @router.get("/{slot_id}", response_model=SlotDetailResponse)
 async def get_slot(slot_id: int, db: AsyncSession = Depends(get_db)):
     slot = await slot_service.get_slot_by_id(db, slot_id)
-    if not slot:
-        raise HTTPException(status_code=404, detail="Slot not found")
     return {"slot": _format_slot(slot)}
 
 

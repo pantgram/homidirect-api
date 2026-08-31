@@ -203,7 +203,7 @@ class TestLogout:
 
         me = await client.get(f"{API}/users/me", headers=headers)
         assert me.status_code == 401
-        assert me.json()["detail"] == "Token has been revoked"
+        assert me.json()["message"] == "Token has been revoked"
 
     async def test_logout_requires_authentication(self, client):
         response = await client.post(f"{API}/auth/logout")
@@ -290,7 +290,7 @@ class TestCurrentUserAuth:
         )
 
         assert response.status_code == 401
-        assert response.json()["detail"] == "Invalid token type"
+        assert response.json()["message"] == "Invalid token type"
 
     async def test_legacy_token_without_type_claim_rejected(self, client, session):
         from jose import jwt
@@ -307,7 +307,7 @@ class TestCurrentUserAuth:
         response = await client.get(f"{API}/users/me", headers={"Authorization": f"Bearer {legacy}"})
 
         assert response.status_code == 401
-        assert response.json()["detail"] == "Invalid token type"
+        assert response.json()["message"] == "Invalid token type"
 
     async def test_refresh_token_treated_as_anonymous_for_optional_user(self, client):
         registered = await register_user(client, email="optional-user@example.com")
@@ -327,4 +327,4 @@ class TestCurrentUserAuth:
         response = await client.get(f"{API}/users/me", headers=auth_headers_for(user))
 
         assert response.status_code == 403
-        assert "banned" in response.json()["detail"]
+        assert "banned" in response.json()["message"]

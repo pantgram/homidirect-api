@@ -140,7 +140,7 @@ class TestAdminReview:
         )
 
         assert response.status_code == 403
-        assert response.json()["detail"] == "Admin access required"
+        assert response.json()["message"] == "Admin access required"
 
     async def test_pending_listings(self, client, listing, landlord_headers, admin_headers):
         await upload_document(client, landlord_headers, listing["id"])

@@ -18,7 +18,7 @@ async def get_favorites(db: AsyncSession, user_id: int, page: int = 1, limit: in
     result = await db.execute(
         select(Listing)
         .join(InterestedListing, InterestedListing.listing_id == Listing.id)
-        .where(InterestedListing.user_id == user_id)
+        .where(InterestedListing.user_id == user_id, Listing.publication_status == "ACTIVE")
         .order_by(desc(Listing.created_at))
         .limit(limit)
         .offset(offset)
@@ -59,7 +59,9 @@ async def check_favorite(db: AsyncSession, user_id: int, listing_id: int) -> boo
 
 
 async def add_favorite(db: AsyncSession, user_id: int, listing_id: int) -> bool:
-    listing_r = await db.execute(select(Listing).where(Listing.id == listing_id))
+    listing_r = await db.execute(
+        select(Listing).where(Listing.id == listing_id, Listing.publication_status == "ACTIVE")
+    )
     if not listing_r.scalar_one_or_none():
         raise NotFoundError("Listing not found")
 

@@ -56,11 +56,11 @@ class TestErrorFormats:
         assert body["error"] == "UnauthorizedError"
         assert "message" in body
 
-    async def test_http_exception_format(self, client, tenant_headers):
+    async def test_not_found_error_format(self, client, tenant_headers):
         response = await client.get(f"{API}/users/999999", headers=tenant_headers)
 
         assert response.status_code == 404
-        assert response.json()["detail"] == "User not found"
+        assert response.json() == {"error": "NotFoundError", "message": "User not found"}
 
     async def test_unhandled_error_is_masked(self, client, landlord_headers):
         from app.tests.conftest import listing_payload
@@ -80,3 +80,4 @@ class TestHttpMethodNotFound:
         response = await client.get(f"{API}/does-not-exist")
 
         assert response.status_code == 404
+        assert response.json() == {"error": "NotFoundError", "message": "Not Found"}

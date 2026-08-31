@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config.database import get_db
 from app.schemas.auth import ExchangeCodeRequest, ExchangeCodeResponse
 from app.services import google_auth
+from app.utils.errors import UnauthorizedError
 
 router = APIRouter(prefix="/auth/google", tags=["Google Auth"])
 
@@ -41,11 +42,9 @@ async def google_auth_redirect():
 @router.get("/callback")
 async def google_auth_callback(code: str, state: str, db: AsyncSession = Depends(get_db)):
     if state not in _state_store:
-        from app.utils.errors import UnauthorizedError
         raise UnauthorizedError("Invalid state parameter")
     stored_time = _state_store.pop(state)
     if time.time() - stored_time > _STATE_TTL_SECONDS:
-        from app.utils.errors import UnauthorizedError
         raise UnauthorizedError("State parameter expired")
 
     tokens = await google_auth.exchange_code_for_tokens(code)
@@ -67,12 +66,10 @@ async def google_auth_callback(code: str, state: str, db: AsyncSession = Depends
 async def exchange_auth_code(body: ExchangeCodeRequest):
     entry = _auth_code_store.pop(body.code, None)
     if not entry:
-        from app.utils.errors import UnauthorizedError
         raise UnauthorizedError("Invalid or expired authorization code")
 
     token_data, created_at = entry
     if time.time() - created_at > _AUTH_CODE_TTL_SECONDS:
-        from app.utils.errors import UnauthorizedError
         raise UnauthorizedError("Authorization code expired")
 
     return {

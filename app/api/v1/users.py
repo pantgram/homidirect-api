@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config.database import get_db
@@ -28,9 +28,8 @@ async def get_me(current_user: User = Depends(get_current_user)):
 
 @router.get("/{user_id}", response_model=UserDetailResponse)
 async def get_user(user_id: int, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+    verify_user_ownership(user_id, current_user)
     row = await user_service.get_user_by_id(db, user_id)
-    if not row:
-        raise HTTPException(status_code=404, detail="User not found")
     return {"user": {
         "id": row.id,
         "first_name": row.first_name,
@@ -48,13 +47,10 @@ async def update_user(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    if not await user_service.get_user_by_id(db, user_id):
-        raise HTTPException(status_code=404, detail="User not found")
+    await user_service.get_user_by_id(db, user_id)
     verify_user_ownership(user_id, current_user)
     data = body.model_dump(exclude_none=True)
     user = await user_service.update_user(db, user_id, data)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
     return {"user": {
         "id": user.id,
         "first_name": user.first_name,
@@ -71,9 +67,6 @@ async def delete_user(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    if not await user_service.get_user_by_id(db, user_id):
-        raise HTTPException(status_code=404, detail="User not found")
+    await user_service.get_user_by_id(db, user_id)
     verify_user_ownership(user_id, current_user)
-    deleted = await user_service.delete_user(db, user_id)
-    if not deleted:
-        raise HTTPException(status_code=404, detail="User not found")
+    await user_service.delete_user(db, user_id)

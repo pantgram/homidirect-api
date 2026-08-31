@@ -25,7 +25,7 @@ class TestCreateListing:
         )
 
         assert response.status_code == 403
-        assert response.json()["detail"] == "Insufficient permissions"
+        assert response.json()["message"] == "Insufficient permissions"
 
     async def test_requires_authentication(self, client):
         response = await client.post(f"{API}/listings/", json=listing_payload())
@@ -102,7 +102,7 @@ class TestUpdateListing:
         response = await client.patch(f"{API}/listings/{listing['id']}", json={"price": 1.0}, headers=headers)
 
         assert response.status_code == 403
-        assert response.json()["detail"] == "You do not own this listing"
+        assert response.json()["message"] == "You do not own this listing"
 
     async def test_admin_can_update_any_listing(self, client, listing, admin_headers):
         response = await client.patch(

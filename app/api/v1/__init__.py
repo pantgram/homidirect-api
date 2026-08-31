@@ -10,7 +10,6 @@ from . import (
     health,
     listing_images,
     listings,
-    uploads,
     users,
     verification,
 )
@@ -22,7 +21,6 @@ router.include_router(auth.router, prefix="/auth")
 router.include_router(users.router)
 router.include_router(listings.router)
 router.include_router(listing_images.router)
-router.include_router(uploads.router)
 router.include_router(bookings.router)
 router.include_router(availability_slots.router)
 router.include_router(verification.router)

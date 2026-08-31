@@ -46,12 +46,13 @@ async def register(db: AsyncSession, first_name: str, last_name: str, email: str
 
 async def login(db: AsyncSession, email: str, password: str):
     result = await db.execute(
-        select(User.id, User.email, User.role, User.password, User.token_version).where(User.email == email)
+        select(User.id, User.email, User.role, User.password, User.token_version, User.status).where(User.email == email)
     )
     row = result.first()
     if not row:
         raise UnauthorizedError("No account found with this email address")
-
+    if row.status in ("BANNED", "SUSPENDED"):
+        raise UnauthorizedError(f"Account is {row.status.lower()}")
     if not row.password:
         raise UnauthorizedError("This account uses Google sign-in. Please use Google to log in.")
 

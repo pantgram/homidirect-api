@@ -121,7 +121,7 @@ class TestGetBookings:
         outsider_headers = {"Authorization": f"Bearer {outsider.json()['token']['accessToken']}"}
         as_outsider = await client.get(f"{API}/bookings/{booking['id']}", headers=outsider_headers)
         assert as_outsider.status_code == 403
-        assert as_outsider.json()["detail"] == "You do not have access to this booking"
+        assert as_outsider.json()["message"] == "You do not have access to this booking"
 
     async def test_bookings_by_user(self, client, listing, landlord_headers, tenant_headers):
         await create_booking(client, tenant_headers, listing["id"])
@@ -138,8 +138,7 @@ class TestGetBookings:
 
         response = await client.get(f"{API}/bookings/listing/{listing['id']}", headers=tenant_headers)
 
-        assert response.status_code == 200
-        assert len(response.json()["bookings"]) == 1
+        assert response.status_code == 403
 
     async def test_unknown_booking(self, client, tenant_headers):
         response = await client.get(f"{API}/bookings/999999", headers=tenant_headers)

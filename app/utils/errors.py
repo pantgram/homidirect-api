@@ -3,8 +3,19 @@ import logging
 from fastapi import Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException
 
 logger = logging.getLogger("homidirect")
+
+_ERROR_NAMES_BY_STATUS = {
+    400: "ValidationError",
+    401: "UnauthorizedError",
+    403: "ForbiddenError",
+    404: "NotFoundError",
+    405: "MethodNotAllowedError",
+    409: "ConflictError",
+    422: "ValidationError",
+}
 
 
 class AppError(Exception):
@@ -47,6 +58,17 @@ async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
     return JSONResponse(
         status_code=exc.status_code,
         content={"error": type(exc).__name__, "message": exc.message},
+    )
+
+
+async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
+    if exc.status_code >= 500:
+        error_name = "InternalServerError"
+    else:
+        error_name = _ERROR_NAMES_BY_STATUS.get(exc.status_code, "HttpError")
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"error": error_name, "message": str(exc.detail)},
     )
 
 

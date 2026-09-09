@@ -120,8 +120,8 @@ class TestGetBookings:
         )
         outsider_headers = {"Authorization": f"Bearer {outsider.json()['token']['accessToken']}"}
         as_outsider = await client.get(f"{API}/bookings/{booking['id']}", headers=outsider_headers)
-        assert as_outsider.status_code == 403
-        assert as_outsider.json()["message"] == "You do not have access to this booking"
+        assert as_outsider.status_code == 404
+        assert as_outsider.json()["message"] == "Booking not found"
 
     async def test_bookings_by_user(self, client, listing, landlord_headers, tenant_headers):
         await create_booking(client, tenant_headers, listing["id"])
@@ -235,4 +235,5 @@ class TestDeleteBooking:
 
         response = await client.delete(f"{API}/bookings/{booking['id']}", headers=outsider_headers)
 
-        assert response.status_code == 403
+        assert response.status_code == 404
+        assert response.json()["message"] == "Booking not found"

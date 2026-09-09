@@ -19,6 +19,7 @@ dependencies = [
     "aiosmtplib>=3.0.2",
     "filetype>=1.2.0",
     "slowapi>=0.1.9",
+    "clerk-backend-api>=7.0.0",
 ]
 
 [project.optional-dependencies]

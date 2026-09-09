@@ -56,15 +56,15 @@ class TestUpdateUser:
         assert response.status_code == 404
         assert response.json()["message"] == "User not found"
 
-    async def test_update_email_conflict(self, client, tenant, landlord, tenant_headers):
+    async def test_email_cannot_be_changed_via_update(self, client, tenant, landlord, tenant_headers):
         response = await client.patch(
             f"{API}/users/{tenant['user']['id']}",
             json={"email": landlord["user"]["email"]},
             headers=tenant_headers,
         )
 
-        assert response.status_code == 409
-        assert response.json()["message"] == "Email already exists"
+        assert response.status_code == 200
+        assert response.json()["user"]["email"] == "tenant@example.com"
 
     async def test_update_unknown_user(self, client, tenant_headers):
         response = await client.patch(

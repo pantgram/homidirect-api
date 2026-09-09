@@ -114,7 +114,7 @@ class TestLogin:
         )
 
         assert response.status_code == 401
-        assert response.json()["message"] == "Incorrect password"
+        assert response.json()["message"] == "Invalid email or password"
 
     async def test_login_unknown_email(self, client):
         response = await client.post(
@@ -122,7 +122,7 @@ class TestLogin:
         )
 
         assert response.status_code == 401
-        assert response.json()["message"] == "No account found with this email address"
+        assert response.json()["message"] == "Invalid email or password"
 
     async def test_login_google_account_without_password(self, client, session):
         user = await create_db_user(session, email="google@example.com")
@@ -134,7 +134,23 @@ class TestLogin:
         )
 
         assert response.status_code == 401
-        assert "Google sign-in" in response.json()["message"]
+        assert response.json()["message"] == "Invalid email or password"
+
+    async def test_login_failures_are_indistinguishable(self, client):
+        await register_user(client, email="timing@example.com")
+
+        unknown = await client.post(
+            f"{API}/auth/login", json={"email": "ghost2@example.com", "password": VALID_PASSWORD}
+        )
+        wrong = await client.post(
+            f"{API}/auth/login", json={"email": "timing@example.com", "password": "WrongPass1"}
+        )
+        google_style = await client.post(
+            f"{API}/auth/login", json={"email": "timing@example.com", "password": ""}
+        )
+
+        assert unknown.status_code == wrong.status_code == google_style.status_code == 401
+        assert unknown.json() == wrong.json() == google_style.json()
 
 
 class TestRefresh:
@@ -179,7 +195,7 @@ class TestRefresh:
         response = await client.post(f"{API}/auth/refresh", json={"refreshToken": refresh})
 
         assert response.status_code == 401
-        assert "banned" in response.json()["message"]
+        assert response.json()["message"] == "Invalid refresh token"
 
     async def test_refresh_rejects_access_token(self, client):
         registered = await register_user(client, email="refresh-access@example.com")

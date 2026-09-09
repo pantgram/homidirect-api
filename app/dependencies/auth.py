@@ -136,10 +136,8 @@ async def verify_booking_ownership(booking_id: int, db: AsyncSession, current_us
         select(Booking).where(Booking.id == booking_id)
     )
     booking = result.scalar_one_or_none()
-    if not booking:
-        raise NotFoundError("Booking not found")
     if current_user.role == "ADMIN":
         return current_user
-    if booking.candidate_id != current_user.id and booking.landlord_id != current_user.id:
-        raise ForbiddenError("You do not have access to this booking")
+    if (not booking) or (booking.candidate_id != current_user.id and booking.landlord_id != current_user.id):
+        raise NotFoundError("Booking not found")
     return current_user

@@ -4,7 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user import User
-from app.utils.errors import ConflictError, NotFoundError
+from app.utils.errors import NotFoundError
 
 
 async def get_user_by_id(db: AsyncSession, user_id: int):
@@ -19,11 +19,7 @@ async def get_user_by_id(db: AsyncSession, user_id: int):
 
 
 async def update_user(db: AsyncSession, user_id: int, data: dict):
-    if data.get("email"):
-        result = await db.execute(select(User.id).where(User.email == data["email"]))
-        existing = result.first()
-        if existing and existing.id != user_id:
-            raise ConflictError("Email already exists")
+   
 
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
@@ -33,7 +29,7 @@ async def update_user(db: AsyncSession, user_id: int, data: dict):
     for key, value in data.items():
         if value is not None:
             setattr(user, key, value)
-    user.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
+    user.updated_at = datetime.now(timezone.utc)
     await db.flush()
     await db.refresh(user)
     return user

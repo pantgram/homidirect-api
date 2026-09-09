@@ -5,12 +5,16 @@ from datetime import datetime, timezone
 from fastapi import BackgroundTasks
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from jose import JWTError, jwt
 
+from app.config.settings import settings
 from app.dependencies.auth import create_access_token, create_refresh_token
 from app.models.user import User
 from app.utils.email import send_password_reset_email
 from app.utils.errors import ConflictError, UnauthorizedError
 from app.utils.hash import hash_password, verify_password
+
+_DUMMY_HASH = hash_password("timing-equalization-dummy")
 
 
 async def register(db: AsyncSession, first_name: str, last_name: str, email: str, password: str, role: str):
@@ -46,18 +50,19 @@ async def register(db: AsyncSession, first_name: str, last_name: str, email: str
 
 async def login(db: AsyncSession, email: str, password: str):
     result = await db.execute(
-        select(User.id, User.email, User.role, User.password, User.token_version, User.status).where(User.email == email)
+        select(User.id, User.email, User.role, User.password, User.token_version, User.status)
+        .where(User.email == email)
     )
     row = result.first()
     if not row:
-        raise UnauthorizedError("No account found with this email address")
-    if row.status in ("BANNED", "SUSPENDED"):
-        raise UnauthorizedError(f"Account is {row.status.lower()}")
+        verify_password(password, _DUMMY_HASH)
+        raise UnauthorizedError("Invalid email or password")
     if not row.password:
-        raise UnauthorizedError("This account uses Google sign-in. Please use Google to log in.")
-
+        raise UnauthorizedError("Invalid email or password")
     if not verify_password(password, row.password):
-        raise UnauthorizedError("Incorrect password")
+        raise UnauthorizedError("Invalid email or password")
+    if row.status in ("BANNED", "SUSPENDED"):
+        raise UnauthorizedError("Invalid email or password")
 
     payload = {"id": row.id, "email": row.email, "role": row.role, "token_version": row.token_version}
     return {
@@ -69,9 +74,7 @@ async def login(db: AsyncSession, email: str, password: str):
 
 
 async def refresh(db: AsyncSession, refresh_token: str):
-    from jose import JWTError, jwt
-
-    from app.config.settings import settings
+  
     try:
         payload = jwt.decode(refresh_token, settings.jwt_secret, algorithms=["HS256"])
     except JWTError:
@@ -86,9 +89,9 @@ async def refresh(db: AsyncSession, refresh_token: str):
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
     if not user:
-        raise UnauthorizedError("User not found")
+        raise UnauthorizedError("Invalid refresh token")
     if user.status in ("BANNED", "SUSPENDED"):
-        raise UnauthorizedError(f"Account is {user.status.lower()}")
+        raise UnauthorizedError("Invalid refresh token")
 
     token_version = payload.get("token_version", 0)
     if token_version != user.token_version:

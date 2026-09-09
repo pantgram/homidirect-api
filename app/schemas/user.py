@@ -1,4 +1,4 @@
-from pydantic import EmailStr, field_validator
+from pydantic import field_validator
 
 from app.schemas.base import CamelModel
 
@@ -25,7 +25,6 @@ class UserWithRoleResponse(CamelModel):
 class UpdateUserRequest(CamelModel):
     first_name: str | None = None
     last_name: str | None = None
-    email: EmailStr | None = None
     role: str | None = None
 
     @field_validator("role")

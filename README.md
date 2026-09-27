@@ -25,7 +25,7 @@ Built with **FastAPI**, **SQLAlchemy 2.0 (async)**, and **PostgreSQL**. Packaged
 | ORM | SQLAlchemy 2.0 (async) + Alembic migrations |
 | Database | PostgreSQL (asyncpg); SQLite (aiosqlite) in tests |
 | Validation | Pydantic v2 + pydantic-settings |
-| Auth | python-jose (JWT), passlib/bcrypt, Google OAuth |
+| Auth | PyJWT (JWT), passlib/bcrypt, Google OAuth |
 | Storage | Cloudflare R2 (boto3) |
 | Email | aiosmtplib |
 | Geocoding | Geoapify |

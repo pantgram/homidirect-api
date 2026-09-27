@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from fastapi import BackgroundTasks
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from jose import JWTError, jwt
+import jwt
 
 from app.config.settings import settings
 from app.dependencies.auth import create_access_token, create_refresh_token
@@ -77,7 +77,7 @@ async def refresh(db: AsyncSession, refresh_token: str):
   
     try:
         payload = jwt.decode(refresh_token, settings.jwt_secret, algorithms=["HS256"])
-    except JWTError:
+    except jwt.PyJWTError:
         raise UnauthorizedError("Invalid refresh token")
 
     user_id = payload.get("id")

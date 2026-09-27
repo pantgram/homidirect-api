@@ -309,7 +309,7 @@ class TestCurrentUserAuth:
         assert response.json()["message"] == "Invalid token type"
 
     async def test_legacy_token_without_type_claim_rejected(self, client, session):
-        from jose import jwt
+        import jwt
 
         from app.config.settings import settings
 

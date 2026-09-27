@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 
 from fastapi import Depends
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from jose import JWTError, jwt
+import jwt
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -50,7 +50,7 @@ async def get_current_user(
         user_id: int = payload.get("id")
         if user_id is None:
             raise UnauthorizedError("Unauthorized")
-    except JWTError:
+    except jwt.PyJWTError:
         raise UnauthorizedError("Unauthorized")
 
     result = await db.execute(select(User).where(User.id == user_id))
@@ -78,7 +78,7 @@ async def get_optional_user(
         user_id: int = payload.get("id")
         if user_id is None:
             return None
-    except JWTError:
+    except jwt.PyJWTError:
         return None
 
     result = await db.execute(select(User).where(User.id == user_id))

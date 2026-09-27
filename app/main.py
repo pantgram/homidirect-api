@@ -33,7 +33,6 @@ async def lifespan(app: FastAPI):
 openapi_tags = [
     {"name": "Health", "description": "Service health checks"},
     {"name": "Auth", "description": "Registration, login, tokens, and password management"},
-    {"name": "Google Auth", "description": "Google OAuth 2.0 login flow"},
     {"name": "Users", "description": "User profile management"},
     {"name": "Listings", "description": "Property listing CRUD, search, and contact"},
     {"name": "Listing Images", "description": "Image uploads attached to existing listings"},

@@ -21,10 +21,6 @@ class Settings(BaseSettings):
     smtp_pass: str = ""
     email_from: str = "HomiDirect <donotreply@homidirect.com>"
 
-    google_client_id: str = ""
-    google_client_secret: str = ""
-    google_callback_url: str = "http://localhost:5000/api/v1/auth/google/callback"
-
     geoapify_api_key: str = ""
     geoapify_request_timeout: float = 5.0
 

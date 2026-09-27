@@ -29,7 +29,6 @@ async def register(db: AsyncSession, first_name: str, last_name: str, email: str
         first_name=first_name,
         last_name=last_name,
         role=role,
-        auth_provider="EMAIL",
     )
     db.add(user)
     await db.flush()

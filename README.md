@@ -6,7 +6,7 @@ Built with **FastAPI**, **SQLAlchemy 2.0 (async)**, and **PostgreSQL**. Packaged
 
 ## Features
 
-- **Authentication** — email/password registration and login, JWT access (15 min) & refresh tokens (7 days) with revocation via `token_version`, password reset flow, Google OAuth 2.0
+- **Authentication** — email/password registration and login, JWT access (15 min) & refresh tokens (7 days) with revocation via `token_version`, password reset flow
 - **Users** — profile management, roles (`LANDLORD` / `TENANT` / `BOTH` / `ADMIN`), status handling (banned/suspended users blocked)
 - **Listings** — full CRUD, paginated search with filters and sorting, stats, distinct cities, featured listings, bilingual (el/en) content, Postgres full-text search (English + Greek)
 - **Listing images** — multipart uploads to Cloudflare R2 with magic-byte content validation and size limits
@@ -25,7 +25,7 @@ Built with **FastAPI**, **SQLAlchemy 2.0 (async)**, and **PostgreSQL**. Packaged
 | ORM | SQLAlchemy 2.0 (async) + Alembic migrations |
 | Database | PostgreSQL (asyncpg); SQLite (aiosqlite) in tests |
 | Validation | Pydantic v2 + pydantic-settings |
-| Auth | PyJWT (JWT), passlib/bcrypt, Google OAuth |
+| Auth | PyJWT (JWT), passlib/bcrypt |
 | Storage | Cloudflare R2 (boto3) |
 | Email | aiosmtplib |
 | Geocoding | Geoapify |
@@ -38,7 +38,7 @@ Built with **FastAPI**, **SQLAlchemy 2.0 (async)**, and **PostgreSQL**. Packaged
 - Python ≥ 3.12
 - [uv](https://docs.astral.sh/uv/)
 - PostgreSQL (or a connection string to one)
-- Cloudflare R2, SMTP, Google OAuth, and Geoapify credentials for full functionality
+- Cloudflare R2, SMTP, and Geoapify credentials for full functionality
 
 ### Installation
 
@@ -100,7 +100,6 @@ All routes are prefixed with `/api/v1`. Authenticated routes expect `Authorizati
 |---|---|
 | Health | `GET /health` |
 | Auth | `POST /auth/register`, `POST /auth/login`, `POST /auth/refresh`, `POST /auth/logout`, `POST /auth/forgot-password`, `POST /auth/reset-password` |
-| Google Auth | `GET /auth/google/`, `GET /auth/google/callback`, `POST /auth/google/exchange` |
 | Users | `GET /users/me`, `GET /users/{id}`, `PATCH /users/{id}`, `DELETE /users/{id}` |
 | Listings | `GET /listings`, `GET /listings/search`, `GET /listings/stats`, `GET /listings/cities`, `GET /listings/my-listings`, `GET/POST /listings`, `GET/PATCH/DELETE /listings/{id}`, `POST /listings/{id}/contact` |
 | Listing Images | `GET/POST /listings/{id}/images`, `DELETE /listings/{id}/images/{image_id}` |
@@ -145,7 +144,6 @@ See [.env.example](.env.example) for all variables:
 | `NODE_ENV` | Environment name |
 | `R2_*` | Cloudflare R2 credentials, bucket, public URL |
 | `SMTP_*`, `EMAIL_FROM` | Outbound email (default Zoho) |
-| `GOOGLE_CLIENT_ID/SECRET/CALLBACK_URL` | Google OAuth app |
 | `GEOAPIFY_API_KEY` | Geoapify geocoding |
 
 ## License

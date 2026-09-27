@@ -4,7 +4,7 @@ import sqlalchemy as sa
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.config.database import Base
-from app.models.enums import auth_provider_enum, user_role_enum, user_status_enum
+from app.models.enums import user_role_enum, user_status_enum
 
 if TYPE_CHECKING:
     from app.models.interested_listing import InterestedListing
@@ -21,8 +21,6 @@ class User(Base):
     status: Mapped[str] = mapped_column(user_status_enum, nullable=False, server_default="ACTIVE")
     email: Mapped[str] = mapped_column(sa.String(255), nullable=False, unique=True)
     password: Mapped[str | None] = mapped_column(sa.Text)
-    google_id: Mapped[str | None] = mapped_column(sa.String(255), unique=True)
-    auth_provider: Mapped[str] = mapped_column(auth_provider_enum, nullable=False, server_default="EMAIL")
     email_verified: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, server_default="false")
     password_reset_token: Mapped[str | None] = mapped_column(sa.String(255))
     password_reset_expires: Mapped[sa.TIMESTAMP | None] = mapped_column(sa.TIMESTAMP(timezone=True))

@@ -100,7 +100,6 @@ async def create_db_user(
         last_name="User",
         role=role,
         status=status,
-        auth_provider="EMAIL",
     )
     session.add(user)
     await session.commit()

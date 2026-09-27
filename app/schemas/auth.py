@@ -60,10 +60,6 @@ class ResetPasswordRequest(CamelModel):
         return _validate_password(v)
 
 
-class ExchangeCodeRequest(CamelModel):
-    code: str
-
-
 class AuthTokens(CamelModel):
     access_token: str
     refresh_token: str
@@ -89,7 +85,3 @@ class UserBrief(CamelModel):
     email: str
     role: str
     created_at: str
-
-
-class ExchangeCodeResponse(CamelModel):
-    token: AuthTokens

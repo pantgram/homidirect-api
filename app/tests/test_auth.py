@@ -124,13 +124,13 @@ class TestLogin:
         assert response.status_code == 401
         assert response.json()["message"] == "Invalid email or password"
 
-    async def test_login_google_account_without_password(self, client, session):
-        user = await create_db_user(session, email="google@example.com")
+    async def test_login_account_without_password(self, client, session):
+        user = await create_db_user(session, email="nopassword@example.com")
         user.password = None
         await session.commit()
 
         response = await client.post(
-            f"{API}/auth/login", json={"email": "google@example.com", "password": VALID_PASSWORD}
+            f"{API}/auth/login", json={"email": "nopassword@example.com", "password": VALID_PASSWORD}
         )
 
         assert response.status_code == 401
@@ -145,12 +145,12 @@ class TestLogin:
         wrong = await client.post(
             f"{API}/auth/login", json={"email": "timing@example.com", "password": "WrongPass1"}
         )
-        google_style = await client.post(
+        empty_password = await client.post(
             f"{API}/auth/login", json={"email": "timing@example.com", "password": ""}
         )
 
-        assert unknown.status_code == wrong.status_code == google_style.status_code == 401
-        assert unknown.json() == wrong.json() == google_style.json()
+        assert unknown.status_code == wrong.status_code == empty_password.status_code == 401
+        assert unknown.json() == wrong.json() == empty_password.json()
 
 
 class TestRefresh:

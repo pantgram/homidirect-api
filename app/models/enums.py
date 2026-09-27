@@ -2,7 +2,6 @@ import sqlalchemy as sa
 
 user_role_enum = sa.Enum("LANDLORD", "TENANT", "BOTH", "ADMIN", name="user_role", create_type=False)
 user_status_enum = sa.Enum("ACTIVE", "BANNED", "SUSPENDED", name="user_status", create_type=False)
-auth_provider_enum = sa.Enum("EMAIL", "GOOGLE", name="auth_provider", create_type=False)
 property_type_enum = sa.Enum("apartment", "house", "studio", "room", name="property_type", create_type=False)
 floors_enum = sa.Enum(
     "basement", "semi-basement", "ground", "1st", "2nd", "3rd", "4th", "5th", "6th+",

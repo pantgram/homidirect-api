@@ -3,6 +3,7 @@ from email.message import EmailMessage
 
 from aiosmtplib import SMTP
 
+from app.config.logging_config import logger
 from app.config.settings import settings
 
 
@@ -22,28 +23,18 @@ def _build_message(to: str, subject: str, body: str) -> EmailMessage:
 
 async def _send_email(to: str, subject: str, body: str) -> None:
     msg = _build_message(to, subject, body)
-    async with SMTP(
-        hostname=settings.smtp_host,
-        port=settings.smtp_port,
-        use_tls=True,
-    ) as smtp:
-        await smtp.login(settings.smtp_user, settings.smtp_pass)
-        await smtp.send_message(msg)
-
-
-async def send_password_reset_email(to: str, token: str) -> None:
-    reset_link = f"{settings.frontend_url}/reset-password?token={token}"
-    body = f"""
-    <html><body>
-    <h2>Password Reset</h2>
-    <p>You requested a password reset. Use the code below or click the link:</p>
-    <p><strong>{_escape(token)}</strong></p>
-    <p><a href="{reset_link}">Reset Password</a></p>
-    <p>This link expires in 1 hour.</p>
-    <p>If you did not request this, ignore this email.</p>
-    </body></html>
-    """
-    await _send_email(to, "Password Reset - HomiDirect", body)
+    try:
+        async with SMTP(
+            hostname=settings.smtp_host,
+            port=settings.smtp_port,
+            use_tls=True,
+        ) as smtp:
+            await smtp.login(settings.smtp_user, settings.smtp_pass)
+            await smtp.send_message(msg)
+    except Exception:
+        logger.exception("Failed to send email to %s", to)
+        raise
+    logger.info("Email sent to %s (subject=%s)", to, subject)
 
 
 async def send_contact_owner_email(

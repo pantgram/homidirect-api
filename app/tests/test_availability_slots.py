@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, timezone
 
-from app.tests.conftest import API, slot_payload
+from app.tests.conftest import API, headers_from_tokens, slot_payload, sync_user
 
 
 def iso(dt: datetime) -> str:
@@ -36,17 +36,8 @@ class TestCreateSlot:
         assert response.json()["message"] == "Listing not found"
 
     async def test_non_owner_cannot_create_slot(self, client, listing):
-        other = await client.post(
-            f"{API}/auth/register",
-            json={
-                "firstName": "Other",
-                "lastName": "Landlord",
-                "email": "slot-landlord@example.com",
-                "password": "Password123",
-                "role": "LANDLORD",
-            },
-        )
-        headers = {"Authorization": f"Bearer {other.json()['token']['accessToken']}"}
+        other = await sync_user(client, email="slot-landlord@example.com", role="LANDLORD")
+        headers = headers_from_tokens(other)
 
         response = await client.post(
             f"{API}/availability-slots/", json=slot_payload(listing["id"]), headers=headers

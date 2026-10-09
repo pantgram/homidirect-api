@@ -1,11 +1,9 @@
-import logging
-
 from fastapi import Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException
 
-logger = logging.getLogger("homidirect")
+from app.config.logging_config import logger
 
 _ERROR_NAMES_BY_STATUS = {
     400: "ValidationError",

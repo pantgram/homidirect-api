@@ -5,6 +5,8 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
 
+from app.config.logging_config import logger
+
 
 def to_camel_case(name: str) -> str:
     parts = name.split("_")
@@ -32,7 +34,8 @@ class CamelCaseMiddleware(BaseHTTPMiddleware):
                 data = json.loads(body)
                 converted = convert_keys(data)
                 return JSONResponse(content=converted, status_code=response.status_code)
-            except (json.JSONDecodeError, Exception):
+            except Exception:
+                logger.warning("Failed to convert response body to camelCase", exc_info=True)
                 return Response(content=body, status_code=response.status_code, headers=dict(response.headers))
 
         return response

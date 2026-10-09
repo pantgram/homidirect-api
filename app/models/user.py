@@ -1,6 +1,8 @@
+import uuid
 from typing import TYPE_CHECKING
 
 import sqlalchemy as sa
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.config.database import Base
@@ -15,16 +17,12 @@ class User(Base):
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(sa.Integer, primary_key=True, autoincrement=True)
+    supabase_user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), unique=True, index=True)
     first_name: Mapped[str] = mapped_column(sa.String(100), nullable=False)
     last_name: Mapped[str] = mapped_column(sa.String(100), nullable=False)
     role: Mapped[str] = mapped_column(user_role_enum, nullable=False)
     status: Mapped[str] = mapped_column(user_status_enum, nullable=False, server_default="ACTIVE")
     email: Mapped[str] = mapped_column(sa.String(255), nullable=False, unique=True)
-    password: Mapped[str | None] = mapped_column(sa.Text)
-    email_verified: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, server_default="false")
-    password_reset_token: Mapped[str | None] = mapped_column(sa.String(255))
-    password_reset_expires: Mapped[sa.TIMESTAMP | None] = mapped_column(sa.TIMESTAMP(timezone=True))
-    token_version: Mapped[int] = mapped_column(sa.Integer, nullable=False, server_default="0")
     created_at: Mapped[sa.DateTime] = mapped_column(sa.TIMESTAMP(timezone=True), nullable=False, server_default=sa.func.now())
     updated_at: Mapped[sa.DateTime] = mapped_column(sa.TIMESTAMP(timezone=True), nullable=False, server_default=sa.func.now(), onupdate=sa.func.now())
 

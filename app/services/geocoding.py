@@ -6,6 +6,7 @@ import httpx
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config.logging_config import logger
 from app.config.settings import settings
 from app.models.geocoding_cache import GeocodingCache
 
@@ -126,8 +127,10 @@ async def search(
 
     cached = await _get_cached(db, query_hash)
     if cached:
+        logger.debug("Geocoding cache hit for %r", text)
         return cached.results
 
+    logger.debug("Geocoding cache miss for %r", text)
     params: dict = {
         "text": text,
         "apiKey": settings.geoapify_api_key,
@@ -146,6 +149,7 @@ async def search(
         data = resp.json()
 
     results = _dedup([_transform(item) for item in data.get("results", [])], DEDUP_METERS)[:limit]
+    logger.debug("Geoapify autocomplete returned %d results for %r", len(results), text)
     if results:
         await _set_cache(db, query_hash, text, country_code, lang, results)
     return results
@@ -160,6 +164,7 @@ async def reverse(db: AsyncSession, lat: float, lon: float, lang: str = "el") ->
 
     cached = await _get_cached(db, query_hash)
     if cached:
+        logger.debug("Geocoding cache hit for reverse (%s, %s)", lat, lon)
         return cached.results[0] if cached.results else None
 
     params = {"lat": lat, "lon": lon, "apiKey": settings.geoapify_api_key, "lang": lang, "format": "json"}

@@ -1,4 +1,4 @@
-from app.tests.conftest import API, create_listing, slot_payload
+from app.tests.conftest import API, create_listing, headers_from_tokens, slot_payload, sync_user
 
 
 async def create_slot(client, headers, listing_id):
@@ -108,17 +108,8 @@ class TestGetBookings:
         as_landlord = await client.get(f"{API}/bookings/{booking['id']}", headers=landlord_headers)
         assert as_landlord.status_code == 200
 
-        outsider = await client.post(
-            f"{API}/auth/register",
-            json={
-                "firstName": "Out",
-                "lastName": "Sider",
-                "email": "outsider@example.com",
-                "password": "Password123",
-                "role": "TENANT",
-            },
-        )
-        outsider_headers = {"Authorization": f"Bearer {outsider.json()['token']['accessToken']}"}
+        outsider = await sync_user(client, email="outsider@example.com")
+        outsider_headers = headers_from_tokens(outsider)
         as_outsider = await client.get(f"{API}/bookings/{booking['id']}", headers=outsider_headers)
         assert as_outsider.status_code == 404
         assert as_outsider.json()["message"] == "Booking not found"
@@ -221,17 +212,8 @@ class TestDeleteBooking:
 
     async def test_outsider_cannot_delete(self, client, listing, tenant_headers):
         booking = await create_booking(client, tenant_headers, listing["id"])
-        outsider = await client.post(
-            f"{API}/auth/register",
-            json={
-                "firstName": "Out",
-                "lastName": "Sider",
-                "email": "delete-outsider@example.com",
-                "password": "Password123",
-                "role": "TENANT",
-            },
-        )
-        outsider_headers = {"Authorization": f"Bearer {outsider.json()['token']['accessToken']}"}
+        outsider = await sync_user(client, email="delete-outsider@example.com")
+        outsider_headers = headers_from_tokens(outsider)
 
         response = await client.delete(f"{API}/bookings/{booking['id']}", headers=outsider_headers)
 

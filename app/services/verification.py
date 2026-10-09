@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config.logging_config import logger
 from app.config.settings import settings
 from app.models.listing import Listing
 from app.models.verification_document import VerificationDocument
@@ -100,6 +101,7 @@ async def upload_document(db: AsyncSession, listing_id: int, document_type: str,
 
     await db.flush()
     await db.refresh(doc)
+    logger.info("Document %s uploaded for listing %s by user %s", doc.id, listing_id, uploaded_by)
     return doc
 
 
@@ -117,6 +119,7 @@ async def delete_document(db: AsyncSession, document_id: int, listing_id: int, c
 
     delete_from_r2(get_key_from_url(doc.url))
     await db.delete(doc)
+    logger.info("Document %s deleted from listing %s", document_id, listing_id)
     return True
 
 
@@ -143,6 +146,7 @@ async def review_verification(db: AsyncSession, listing_id: int, status: str, no
     )
     db.add(history)
     await db.flush()
+    logger.info("Verification for listing %s changed from %s to %s by user %s", listing_id, previous, status, reviewer_id)
     return listing
 
 

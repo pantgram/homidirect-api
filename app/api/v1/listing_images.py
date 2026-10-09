@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, File, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config.database import get_db
+from app.config.logging_config import logger
 from app.config.settings import settings
 from app.dependencies.auth import get_optional_user, require_role, verify_listing_ownership
 from app.models.user import User
@@ -44,6 +45,7 @@ async def upload_image(
     detected_type = validate_image(file_bytes, file.filename or "image", file.content_type, settings.max_file_size)
 
     img = await img_service.upload_listing_image(db, listing_id, file_bytes, file.filename or "image", detected_type)
+    logger.info("Image %s uploaded for listing %s by user %s", img.id, listing_id, current_user.id)
     return {"image": {
         "id": img.id,
         "url": img.url,
@@ -61,4 +63,5 @@ async def delete_image(
 ):
     await verify_listing_ownership(listing_id, db, current_user)
 
-    await img_service.delete_image(db, image_id,listing_id)
+    await img_service.delete_image(db, image_id, listing_id)
+    logger.info("Image %s deleted from listing %s by user %s", image_id, listing_id, current_user.id)

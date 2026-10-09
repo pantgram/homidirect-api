@@ -1,40 +1,80 @@
-import copy
-from datetime import datetime, timedelta, timezone
+import uuid
 
+import jwt
 from fastapi import Depends
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-import jwt
+from jwt import PyJWKClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config.database import get_db
+from app.config.logging_config import logger
 from app.config.settings import settings
 from app.models.listing import Listing
 from app.models.user import User
 from app.utils.errors import ForbiddenError, NotFoundError, UnauthorizedError
+from app.services import auth as auth_service
 
 security_scheme = HTTPBearer(auto_error=False)
 
-
-class TokenData:
-    def __init__(self, id: int, email: str, role: str):
-        self.id = id
-        self.email = email
-        self.role = role
+_jwk_client: PyJWKClient | None = None
 
 
-def create_access_token(data: dict) -> str:
-    to_encode = copy.copy(data)
-    expire = datetime.now(timezone.utc) + timedelta(minutes=15)
-    to_encode.update({"exp": expire, "type": "access"})
-    return jwt.encode(to_encode, settings.jwt_secret, algorithm="HS256")
+def _get_jwk_client() -> PyJWKClient:
+    global _jwk_client
+    if _jwk_client is None:
+        _jwk_client = PyJWKClient(
+            f"{settings.supabase_url}/auth/v1/.well-known/jwks.json",
+            cache_keys=True,
+            lifespan=600,
+        )
+    return _jwk_client
 
 
-def create_refresh_token(data: dict) -> str:
-    to_encode = copy.copy(data)
-    expire = datetime.now(timezone.utc) + timedelta(days=7)
-    to_encode.update({"exp": expire, "type": "refresh"})
-    return jwt.encode(to_encode, settings.jwt_secret, algorithm="HS256")
+def verify_supabase_jwt(token: str) -> dict:
+    """Verify a Supabase Auth access token and return its claims.
+
+    Uses the project's JWKS endpoint (asymmetric signing keys) by default, or the
+    legacy HS256 shared secret when SUPABASE_JWT_SECRET is configured.
+    """
+    issuer = f"{settings.supabase_url.rstrip('/')}/auth/v1"
+    logger.info("Verifying JWT with token: %s", token)
+    try:
+        if settings.supabase_jwt_secret:
+            payload = jwt.decode(
+                token,
+                settings.supabase_jwt_secret,
+                algorithms=["HS256"],
+                issuer=issuer,
+                audience=audience,
+            )
+        else:
+            signing_key = _get_jwk_client().get_signing_key_from_jwt(token)
+            audience = "authenticated"
+            payload = jwt.decode(
+                token,
+                signing_key.key,
+                algorithms=[signing_key.algorithm_name],
+                issuer=issuer,
+                audience=audience,
+            )
+    except jwt.PyJWTError as exc:
+        logger.warning("JWT verification failed: %s: %s", type(exc).__name__, exc)
+        raise UnauthorizedError("Unauthorized") from exc
+    if payload.get("role") != "authenticated":
+        logger.warning("JWT role is not authenticated: %s", payload.get("role"))
+        raise UnauthorizedError("Unauthorized")
+    return payload
+
+
+def _extract_supabase_user_id(payload: dict) -> uuid.UUID | None:
+    sub = payload.get("sub")
+    if not sub:
+        return None
+    try:
+        return uuid.UUID(sub)
+    except (ValueError, AttributeError):
+        return None
 
 
 async def get_current_user(
@@ -43,25 +83,19 @@ async def get_current_user(
 ) -> User:
     if credentials is None:
         raise UnauthorizedError("Unauthorized")
-    try:
-        payload = jwt.decode(credentials.credentials, settings.jwt_secret, algorithms=["HS256"])
-        if payload.get("type") != "access":
-            raise UnauthorizedError("Invalid token type")
-        user_id: int = payload.get("id")
-        if user_id is None:
-            raise UnauthorizedError("Unauthorized")
-    except jwt.PyJWTError:
+    payload = verify_supabase_jwt(credentials.credentials)
+    logger.info("JWT payload: %s", payload)
+    supabase_user_id = _extract_supabase_user_id(payload)
+    if supabase_user_id is None:
         raise UnauthorizedError("Unauthorized")
 
-    result = await db.execute(select(User).where(User.id == user_id))
+    result = await db.execute(select(User).where(User.supabase_user_id == supabase_user_id))
     user = result.scalar_one_or_none()
     if user is None:
-        raise UnauthorizedError("User not found")
+        metadata = payload.get("user_metadata", {})
+        user = await auth_service.sync_user(db, supabase_user_id, payload.get("email"), metadata.get("first_name"), metadata.get("last_name"), metadata.get("role"))
     if user.status in ("BANNED", "SUSPENDED"):
         raise ForbiddenError(f"Account is {user.status.lower()}")
-    token_version = payload.get("token_version", 0)
-    if token_version != user.token_version:
-        raise UnauthorizedError("Token has been revoked")
     return user
 
 
@@ -72,23 +106,16 @@ async def get_optional_user(
     if credentials is None:
         return None
     try:
-        payload = jwt.decode(credentials.credentials, settings.jwt_secret, algorithms=["HS256"])
-        if payload.get("type") != "access":
+        payload = verify_supabase_jwt(credentials.credentials)
+        supabase_user_id = _extract_supabase_user_id(payload)
+        if supabase_user_id is None:
             return None
-        user_id: int = payload.get("id")
-        if user_id is None:
-            return None
-    except jwt.PyJWTError:
+        result = await db.execute(select(User).where(User.supabase_user_id == supabase_user_id))
+        user = result.scalar_one_or_none()
+    except UnauthorizedError:
         return None
-
-    result = await db.execute(select(User).where(User.id == user_id))
-    user = result.scalar_one_or_none()
     if user and user.status in ("BANNED", "SUSPENDED"):
         return None
-    if user:
-        token_version = payload.get("token_version", 0)
-        if token_version != user.token_version:
-            return None
     return user
 
 
@@ -127,7 +154,6 @@ async def verify_listing_ownership(listing_id: int, db: AsyncSession, current_us
     if row[0] != current_user.id:
         raise ForbiddenError("You do not own this listing")
     return current_user
-
 
 
 async def verify_booking_ownership(booking_id: int, db: AsyncSession, current_user: User) -> User:

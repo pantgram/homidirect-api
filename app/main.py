@@ -1,4 +1,3 @@
-import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -11,6 +10,7 @@ from starlette.exceptions import HTTPException
 from app.api.v1 import router
 from app.config.database import engine
 from app.config.limiter import limiter
+from app.config.logging_config import logger
 from app.config.settings import settings
 from app.middleware.camel_case import CamelCaseMiddleware
 from app.utils.errors import (
@@ -21,18 +21,17 @@ from app.utils.errors import (
     validation_error_handler,
 )
 
-logger = logging.getLogger("homidirect")
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    logger.info("Application startup")
     yield
+    logger.info("Application shutdown")
     await engine.dispose()
 
 
 openapi_tags = [
     {"name": "Health", "description": "Service health checks"},
-    {"name": "Auth", "description": "Registration, login, tokens, and password management"},
+    {"name": "Auth", "description": "Supabase Auth profile sync"},
     {"name": "Users", "description": "User profile management"},
     {"name": "Listings", "description": "Property listing CRUD, search, and contact"},
     {"name": "Listing Images", "description": "Image uploads attached to existing listings"},

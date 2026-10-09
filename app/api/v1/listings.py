@@ -3,6 +3,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config.database import get_db
+from app.config.logging_config import logger
 from app.dependencies.auth import get_current_user, get_optional_user, require_role, verify_listing_ownership
 from app.models.user import User
 from app.models.user import User as UserModel
@@ -111,6 +112,7 @@ async def create_listing(
 
     data = body.model_dump(exclude_none=True)
     listing = await listing_service.create_listing(db, data)
+    logger.info("Listing %s created by user %s", listing.id, current_user.id)
     return {"listing": listing_to_dict(listing)}
 
 @router.patch("/{listing_id}", response_model=ListingDetailResponse)
@@ -123,6 +125,7 @@ async def update_listing(
     await verify_listing_ownership(listing_id, db, current_user)
     data = body.model_dump(exclude_none=True)
     listing = await listing_service.update_listing(db, listing_id, data)
+    logger.info("Listing %s updated by user %s", listing_id, current_user.id)
     return {"listing": listing_to_dict(listing)}
 
 
@@ -134,6 +137,7 @@ async def delete_listing(
 ):
     await verify_listing_ownership(listing_id, db, current_user)
     await listing_service.delete_listing(db, listing_id)
+    logger.info("Listing %s deleted by user %s", listing_id, current_user.id)
 
 
 @router.post("/{listing_id}/contact", response_model=MessageResponse)
@@ -156,4 +160,5 @@ async def contact_owner(
             body.phone or "",
             body.message,
         )
+    logger.info("Contact request for listing %s queued for owner by user %s", listing_id, current_user.id)
     return {"message": "Contact email sent"}

@@ -1,163 +1,47 @@
-import hashlib
-import secrets
-from datetime import datetime, timezone
+import uuid
 
-from fastapi import BackgroundTasks
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-import jwt
 
-from app.config.settings import settings
-from app.dependencies.auth import create_access_token, create_refresh_token
+from app.config.logging_config import logger
 from app.models.user import User
-from app.utils.email import send_password_reset_email
-from app.utils.errors import ConflictError, UnauthorizedError
-from app.utils.hash import hash_password, verify_password
-
-_DUMMY_HASH = hash_password("timing-equalization-dummy")
+from app.utils.errors import ConflictError
 
 
-async def register(db: AsyncSession, first_name: str, last_name: str, email: str, password: str, role: str):
-    result = await db.execute(select(User).where(User.email == email))
-    if result.scalar_one_or_none():
-        raise ConflictError("Email already registered")
+async def sync_user(
+    db: AsyncSession,
+    supabase_user_id: uuid.UUID,
+    email: str,
+    first_name: str,
+    last_name: str,
+    role: str,
+) -> User:
+    """Create the app profile row for an authenticated Supabase user, or update
+    the existing one. Idempotent; safe to call after every signup/login."""
+    result = await db.execute(select(User).where(User.supabase_user_id == supabase_user_id))
+    user = result.scalar_one_or_none()
 
-    hashed = hash_password(password)
-    user = User(
-        email=email,
-        password=hashed,
-        first_name=first_name,
-        last_name=last_name,
-        role=role,
-    )
-    db.add(user)
+    if user is None:
+        result = await db.execute(select(User.id).where(User.email == email))
+        if result.scalar_one_or_none() is not None:
+            logger.warning("Profile sync rejected: email already registered for supabase user %s", supabase_user_id)
+            raise ConflictError("Email already registered")
+        user = User(
+            supabase_user_id=supabase_user_id,
+            email=email,
+            first_name=first_name,
+            last_name=last_name,
+            role=role,
+        )
+        db.add(user)
+    else:
+        user.first_name = first_name
+        user.last_name = last_name
+        user.role = role
+        if user.email != email:
+            user.email = email
+
     await db.flush()
     await db.refresh(user)
-
-    payload = {"id": user.id, "email": user.email, "token_version": user.token_version}
-    access = create_access_token(payload)
-    refresh_t = create_refresh_token(payload)
-    return {
-        "user": {
-            "id": user.id, "firstName": user.first_name, "lastName": user.last_name,
-            "email": user.email, "role": user.role,
-            "createdAt": user.created_at.isoformat() if user.created_at else None,
-        },
-        "token": {"accessToken": access, "refreshToken": refresh_t},
-    }
-
-
-async def login(db: AsyncSession, email: str, password: str):
-    result = await db.execute(
-        select(User.id, User.email, User.role, User.password, User.token_version, User.status)
-        .where(User.email == email)
-    )
-    row = result.first()
-    if not row:
-        verify_password(password, _DUMMY_HASH)
-        raise UnauthorizedError("Invalid email or password")
-    if not row.password:
-        raise UnauthorizedError("Invalid email or password")
-    if not verify_password(password, row.password):
-        raise UnauthorizedError("Invalid email or password")
-    if row.status in ("BANNED", "SUSPENDED"):
-        raise UnauthorizedError("Invalid email or password")
-
-    payload = {"id": row.id, "email": row.email, "role": row.role, "token_version": row.token_version}
-    return {
-        "token": {
-            "accessToken": create_access_token(payload),
-            "refreshToken": create_refresh_token(payload),
-        }
-    }
-
-
-async def refresh(db: AsyncSession, refresh_token: str):
-  
-    try:
-        payload = jwt.decode(refresh_token, settings.jwt_secret, algorithms=["HS256"])
-    except jwt.PyJWTError:
-        raise UnauthorizedError("Invalid refresh token")
-
-    user_id = payload.get("id")
-    if payload.get("type") != "refresh":
-        raise UnauthorizedError("Invalid token type")
-    if not user_id:
-        raise UnauthorizedError("Invalid refresh token")
-
-    result = await db.execute(select(User).where(User.id == user_id))
-    user = result.scalar_one_or_none()
-    if not user:
-        raise UnauthorizedError("Invalid refresh token")
-    if user.status in ("BANNED", "SUSPENDED"):
-        raise UnauthorizedError("Invalid refresh token")
-
-    token_version = payload.get("token_version", 0)
-    if token_version != user.token_version:
-        raise UnauthorizedError("Token has been revoked")
-
-    data = {"id": user.id, "email": user.email, "role": user.role, "token_version": user.token_version}
-    return {
-        "tokens": {
-            "accessToken": create_access_token(data),
-            "refreshToken": create_refresh_token(data),
-        }
-    }
-
-
-async def forgot_password(db: AsyncSession, email: str, background_tasks: BackgroundTasks):
-    result = await db.execute(select(User.id, User.email).where(User.email == email))
-    user = result.first()
-
-    if not user:
-        return {"message": "If an account exists with this email, a reset link has been sent"}
-
-    reset_token = secrets.token_hex(32)
-    hashed_token = hashlib.sha256(reset_token.encode()).hexdigest()
-    expires_at = datetime.now(timezone.utc).timestamp() + 3600
-
-    result2 = await db.execute(
-        select(User).where(User.id == user.id)
-    )
-    db_user = result2.scalar_one()
-    db_user.password_reset_token = hashed_token
-    db_user.password_reset_expires = datetime.fromtimestamp(expires_at, tz=timezone.utc)
-    db_user.updated_at = datetime.now(timezone.utc)
-    db.add(db_user)
-    await db.flush()
-    await db.refresh(db_user)
-
-    background_tasks.add_task(send_password_reset_email, user.email, reset_token)
-
-    return {"message": "If an account exists with this email, a reset link has been sent"}
-
-
-async def reset_password(db: AsyncSession, token: str, password: str):
-    hashed_token = hashlib.sha256(token.encode()).hexdigest()
-    result = await db.execute(
-        select(User).where(
-            User.password_reset_token == hashed_token,
-            User.password_reset_expires > datetime.now(timezone.utc),
-        )
-    )
-    user = result.scalar_one_or_none()
-
-    if not user:
-        raise UnauthorizedError("Invalid or expired reset token")
-
-    user.password = hash_password(password)
-    user.password_reset_token = None
-    user.password_reset_expires = None
-    user.token_version = (user.token_version or 0) + 1
-    user.updated_at = datetime.now(timezone.utc)
-
-    return {"message": "Password has been reset successfully"}
-
-
-async def logout(db: AsyncSession, user_id: int):
-    result = await db.execute(select(User).where(User.id == user_id))
-    user = result.scalar_one_or_none()
-    if not user:
-        return
-    user.token_version = (user.token_version or 0) + 1
-    user.updated_at = datetime.now(timezone.utc)
+    logger.info("Profile synced for user %s", user.id)
+    return user

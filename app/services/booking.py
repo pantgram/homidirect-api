@@ -2,6 +2,7 @@ from fastapi import BackgroundTasks
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config.logging_config import logger
 from app.models.availability_slot import AvailabilitySlot
 from app.models.booking import Booking
 from app.models.listing import Listing
@@ -95,7 +96,7 @@ async def create_booking(db: AsyncSession, data: dict, current_user, background_
                 booking.id,
             )
     except Exception:
-        pass
+        logger.warning("Failed to queue booking created email for booking %s", booking.id, exc_info=True)
 
     return booking
 
@@ -145,11 +146,11 @@ async def update_booking(db: AsyncSession, booking_id: int, data: dict,current_u
                     tenant.email,
                     f"{tenant.first_name} {tenant.last_name}",
                     f"{landlord.first_name} {landlord.last_name}",
-                    listing.title_el,
-                    booking.scheduled_at.isoformat(),
-                )
+                listing.title_el,
+                booking.scheduled_at.isoformat(),
+            )
     except Exception:
-        pass
+        logger.warning("Failed to queue booking status email for booking %s", booking.id, exc_info=True)
 
     return booking
 
@@ -186,7 +187,8 @@ async def delete_booking(db: AsyncSession, booking_id: int, background_tasks: Ba
                 booking.scheduled_at.isoformat(),
             )
     except Exception:
-        pass
+        logger.warning("Failed to queue booking cancelled email for booking %s", booking.id, exc_info=True)
 
     await db.delete(booking)
+    logger.info("Booking %s deleted", booking_id)
     return True

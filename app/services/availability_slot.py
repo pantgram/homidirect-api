@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config.logging_config import logger
 from app.models.availability_slot import AvailabilitySlot
 from app.models.listing import Listing
 from app.utils.errors import ForbiddenError, NotFoundError
@@ -47,6 +48,7 @@ async def create_slot(db: AsyncSession, data: dict, current_user):
     db.add(slot)
     await db.flush()
     await db.refresh(slot)
+    logger.info("Slot %s created for listing %s", slot.id, data["listing_id"])
     return slot
 
 
@@ -60,6 +62,7 @@ async def update_slot(db: AsyncSession, slot_id: int, data: dict, current_user):
             setattr(slot, key, value)
     await db.flush()
     await db.refresh(slot)
+    logger.info("Slot %s updated", slot_id)
     return slot
 
 
@@ -68,4 +71,5 @@ async def delete_slot(db: AsyncSession, slot_id: int, current_user) -> bool:
     if current_user.role != "ADMIN" and slot.landlord_id != current_user.id:
         raise ForbiddenError("You do not own this slot")
     await db.delete(slot)
+    logger.info("Slot %s deleted", slot_id)
     return True

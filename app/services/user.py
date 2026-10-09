@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config.logging_config import logger
 from app.models.user import User
 from app.utils.errors import NotFoundError
 
@@ -32,13 +33,16 @@ async def update_user(db: AsyncSession, user_id: int, data: dict):
     user.updated_at = datetime.now(timezone.utc)
     await db.flush()
     await db.refresh(user)
+    logger.info("User %s updated", user_id)
     return user
 
 
-async def delete_user(db: AsyncSession, user_id: int) -> bool:
+async def delete_user(db: AsyncSession, user_id: int):
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
     if not user:
         raise NotFoundError("User not found")
+    supabase_user_id = user.supabase_user_id
     await db.delete(user)
-    return True
+    logger.info("User %s deleted", user_id)
+    return supabase_user_id

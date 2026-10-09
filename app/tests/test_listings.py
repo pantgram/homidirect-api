@@ -1,4 +1,4 @@
-from app.tests.conftest import API, create_listing, listing_payload
+from app.tests.conftest import API, create_listing, headers_from_tokens, listing_payload, sync_user
 
 
 class TestCreateListing:
@@ -87,17 +87,8 @@ class TestUpdateListing:
         assert body["bedrooms"] == 3
 
     async def test_non_owner_cannot_update(self, client, listing):
-        other = await client.post(
-            f"{API}/auth/register",
-            json={
-                "firstName": "Other",
-                "lastName": "Landlord",
-                "email": "other-landlord@example.com",
-                "password": "Password123",
-                "role": "LANDLORD",
-            },
-        )
-        headers = {"Authorization": f"Bearer {other.json()['token']['accessToken']}"}
+        other = await sync_user(client, email="other-landlord@example.com", role="LANDLORD")
+        headers = headers_from_tokens(other)
 
         response = await client.patch(f"{API}/listings/{listing['id']}", json={"price": 1.0}, headers=headers)
 
@@ -141,17 +132,8 @@ class TestDeleteListing:
 class TestMyListings:
     async def test_returns_only_own_listings(self, client, landlord_headers):
         first = await create_listing(client, landlord_headers, titleEl="Mine")
-        other = await client.post(
-            f"{API}/auth/register",
-            json={
-                "firstName": "Second",
-                "lastName": "Landlord",
-                "email": "second-landlord@example.com",
-                "password": "Password123",
-                "role": "LANDLORD",
-            },
-        )
-        other_headers = {"Authorization": f"Bearer {other.json()['token']['accessToken']}"}
+        other = await sync_user(client, email="second-landlord@example.com", role="LANDLORD")
+        other_headers = headers_from_tokens(other)
         await create_listing(client, other_headers, titleEl="Theirs")
 
         response = await client.get(f"{API}/listings/my-listings", headers=landlord_headers)

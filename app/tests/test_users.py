@@ -3,7 +3,7 @@ from app.tests.conftest import API, headers_from_tokens
 
 class TestMe:
     async def test_me_returns_profile(self, client, tenant):
-        response = await client.get(f"{API}/users/me", headers=headers_from_tokens(tenant["token"]))
+        response = await client.get(f"{API}/users/me", headers=headers_from_tokens(tenant))
 
         assert response.status_code == 200
         body = response.json()
@@ -87,11 +87,16 @@ class TestDeleteUser:
 
         assert response.status_code == 204
 
-    async def test_login_after_account_deletion(self, client, tenant, tenant_headers):
-        await client.delete(f"{API}/users/{tenant['user']['id']}", headers=tenant_headers)
-        login = await client.post(f"{API}/auth/login", json={"email": "tenant@example.com", "password": "Password123"})
+    async def test_supabase_auth_user_deleted_after_account_deletion(
+        self, client, tenant, tenant_headers, mock_external_services
+    ):
+        response = await client.delete(f"{API}/users/{tenant['user']['id']}", headers=tenant_headers)
 
-        assert login.status_code == 401
+        assert response.status_code == 204
+        mock_external_services["delete_auth_user"].assert_awaited_once()
+
+        me = await client.get(f"{API}/users/me", headers=tenant_headers)
+        assert me.status_code == 401
 
     async def test_cannot_delete_other_user(self, client, landlord, tenant_headers):
         response = await client.delete(

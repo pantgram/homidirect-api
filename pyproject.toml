@@ -11,15 +11,13 @@ dependencies = [
     "alembic>=1.14.0",
     "pydantic[email]>=2.10.0",
     "pydantic-settings>=2.6.0",
-    "pyjwt>=2.10.0",
-    "passlib[bcrypt]>=1.7.4",
+    "pyjwt[crypto]>=2.10.0",
     "python-multipart>=0.0.17",
     "boto3>=1.35.0",
     "httpx>=0.28.0",
     "aiosmtplib>=3.0.2",
     "filetype>=1.2.0",
     "slowapi>=0.1.9",
-    "clerk-backend-api>=7.0.0",
 ]
 
 [project.optional-dependencies]

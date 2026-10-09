@@ -1,6 +1,7 @@
 from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config.logging_config import logger
 from app.models.interested_listing import InterestedListing
 from app.models.listing import Listing
 from app.utils.errors import NotFoundError
@@ -74,6 +75,7 @@ async def add_favorite(db: AsyncSession, user_id: int, listing_id: int) -> bool:
     fav = InterestedListing(user_id=user_id, listing_id=listing_id)
     db.add(fav)
     await db.flush()
+    logger.info("Listing %s favorited by user %s", listing_id, user_id)
     return True
 
 
@@ -85,4 +87,5 @@ async def remove_favorite(db: AsyncSession, user_id: int, listing_id: int) -> bo
     if not fav:
         raise NotFoundError("Favorite not found")
     await db.delete(fav)
+    logger.info("Listing %s removed from favorites by user %s", listing_id, user_id)
     return True

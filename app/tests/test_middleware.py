@@ -3,7 +3,7 @@ from app.tests.conftest import API, create_listing, headers_from_tokens
 
 class TestCamelCaseResponses:
     async def test_user_profile_keys_are_camel_case(self, client, tenant):
-        response = await client.get(f"{API}/users/me", headers=headers_from_tokens(tenant["token"]))
+        response = await client.get(f"{API}/users/me", headers=headers_from_tokens(tenant))
 
         body = response.json()
         assert "firstName" in body
@@ -31,13 +31,13 @@ class TestCamelCaseResponses:
         assert "hasPreviousPage" in pagination
 
     async def test_nested_keys_are_converted(self, client, tenant):
-        body = (await client.get(f"{API}/users/me", headers=headers_from_tokens(tenant["token"]))).json()
+        body = (await client.get(f"{API}/users/me", headers=headers_from_tokens(tenant))).json()
         assert isinstance(body, dict)
 
 
 class TestErrorFormats:
     async def test_validation_error_format(self, client):
-        response = await client.post(f"{API}/auth/register", json={})
+        response = await client.post(f"{API}/auth/sync", json={})
 
         assert response.status_code == 422
         body = response.json()
@@ -47,9 +47,7 @@ class TestErrorFormats:
         assert {"path", "message"} <= set(body["details"][0].keys())
 
     async def test_app_error_format(self, client):
-        response = await client.post(
-            f"{API}/auth/login", json={"email": "nobody@example.com", "password": "Password123"}
-        )
+        response = await client.get(f"{API}/users/me", headers={"Authorization": "Bearer garbage"})
 
         assert response.status_code == 401
         body = response.json()

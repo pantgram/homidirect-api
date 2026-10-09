@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from sqlalchemy import and_, asc, desc, func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config.logging_config import logger
 from app.models.listing import Listing
 from app.services.listing_image import delete_images_by_listing_id
 from app.utils.errors import NotFoundError
@@ -79,7 +80,7 @@ async def delete_listing(db: AsyncSession, listing_id: int) -> bool:
     try:
         await delete_images_by_listing_id(db, listing_id)
     except Exception:
-        pass
+        logger.warning("Failed to delete images for listing %s", listing_id, exc_info=True)
     await db.delete(listing)
     return True
 

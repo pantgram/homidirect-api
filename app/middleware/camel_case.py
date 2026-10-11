@@ -23,6 +23,9 @@ def convert_keys(obj):
 
 class CamelCaseMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
+        if not request.url.path.startswith("/api/"):
+            return await call_next(request)
+
         response = await call_next(request)
 
         if response.headers.get("content-type", "").startswith("application/json"):

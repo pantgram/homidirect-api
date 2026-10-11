@@ -35,6 +35,17 @@ class TestCamelCaseResponses:
         assert isinstance(body, dict)
 
 
+class TestOpenApiSpec:
+    async def test_openapi_json_is_not_camel_cased(self, client):
+        spec = (await client.get("/openapi.json")).json()
+
+        assert "/api/v1/listings/{listing_id}" in spec["paths"]
+        assert "/api/v1/users/{user_id}" in spec["paths"]
+
+        params = spec["paths"]["/api/v1/listings/{listing_id}"]["get"]["parameters"]
+        assert params[0]["name"] == "listing_id"
+
+
 class TestErrorFormats:
     async def test_validation_error_format(self, client):
         response = await client.post(f"{API}/auth/sync", json={})

@@ -20,8 +20,7 @@ async def delete_auth_user(supabase_user_id: uuid.UUID) -> bool:
         return False
     url = f"{settings.supabase_url}/auth/v1/admin/users/{supabase_user_id}"
     headers = {
-        "apikey": settings.supabase_service_role_key,
-        "Authorization": f"Bearer {settings.supabase_service_role_key}",
+        "apikey": settings.supabase_service_role_key
     }
     try:
         async with httpx.AsyncClient() as client:

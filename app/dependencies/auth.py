@@ -38,7 +38,6 @@ def verify_supabase_jwt(token: str) -> dict:
     legacy HS256 shared secret when SUPABASE_JWT_SECRET is configured.
     """
     issuer = f"{settings.supabase_url.rstrip('/')}/auth/v1"
-    logger.info("Verifying JWT with token: %s", token)
     try:
         if settings.supabase_jwt_secret:
             payload = jwt.decode(
@@ -84,7 +83,6 @@ async def get_current_user(
     if credentials is None:
         raise UnauthorizedError("Unauthorized")
     payload = verify_supabase_jwt(credentials.credentials)
-    logger.info("JWT payload: %s", payload)
     supabase_user_id = _extract_supabase_user_id(payload)
     if supabase_user_id is None:
         raise UnauthorizedError("Unauthorized")

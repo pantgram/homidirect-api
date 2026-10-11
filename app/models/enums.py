@@ -8,9 +8,6 @@ floors_enum = sa.Enum(
     name="floors", create_type=False,
 )
 verification_status_enum = sa.Enum("PENDING", "APPROVED", "REJECTED", name="verification_status", create_type=False)
-listing_status_enum = sa.Enum("Renovated", "Luxurious", "Under construction", "Neoclassical", name="listing_status", create_type=False)
 publication_status_enum = sa.Enum("DRAFT", "ACTIVE", name="publication_status", create_type=False)
-zone_type_enum = sa.Enum("Residential", "Agricultural", "Commercial", "Industrial", "Regeneration", name="zone_type", create_type=False)
 booking_status_enum = sa.Enum("PENDING", "CONFIRMED", "DECLINED", "CANCELLED", name="booking_status", create_type=False)
-featured_purchase_status_enum = sa.Enum("PENDING", "COMPLETED", "FAILED", "REFUNDED", name="featured_purchase_status", create_type=False)
 document_type_enum = sa.Enum("UTILITY_BILL", "TITLE_DEED", "LEASE_AGREEMENT", "PROPERTY_TAX", "OTHER", name="document_type", create_type=False)

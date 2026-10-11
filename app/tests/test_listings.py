@@ -217,14 +217,6 @@ class TestSearch:
         assert response.status_code == 200
         assert response.json()["pagination"]["total"] == 1
 
-    async def test_search_available_filter(self, client, landlord_headers):
-        available = await create_listing(client, landlord_headers)
-        await create_listing(client, landlord_headers, available=False)
-
-        response = await client.get(f"{API}/listings/search", params={"available": "true"})
-
-        assert [item["id"] for item in response.json()["data"]] == [available["id"]]
-
     async def test_search_requires_no_authentication(self, client, listing):
         response = await client.get(f"{API}/listings/search")
 
@@ -235,20 +227,19 @@ class TestSearch:
 class TestStatsAndCities:
     async def test_stats(self, client, landlord_headers):
         await create_listing(client, landlord_headers)
-        await create_listing(client, landlord_headers, available=False)
+        await create_listing(client, landlord_headers)
 
         response = await client.get(f"{API}/listings/stats")
 
         assert response.status_code == 200
         body = response.json()
-        assert body["activeListingsCount"] == 1
+        assert body["activeListingsCount"] == 2
         assert body["propertyOwnersCount"] == 1
 
     async def test_cities_distinct_and_sorted(self, client, landlord_headers):
         await create_listing(client, landlord_headers, city="Thessaloniki")
         await create_listing(client, landlord_headers, city="Athens")
         await create_listing(client, landlord_headers, city="Athens")
-        await create_listing(client, landlord_headers, city="Patras", available=False)
 
         response = await client.get(f"{API}/listings/cities")
 

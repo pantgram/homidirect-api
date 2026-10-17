@@ -12,19 +12,17 @@ class BookingResponse(CamelModel):
     candidate_id: int
     landlord_id: int
     listing_id: int
-    availability_slot_id: int | None
+    availability_slot_id: int
 
 
 class CreateBookingRequest(CamelModel):
     listing_id: int
-    scheduled_at: datetime
+    availability_slot_id: int
     meet_link: str | None = None
-    availability_slot_id: int | None = None
 
 
 class UpdateBookingRequest(CamelModel):
     status: str | None = None
-    scheduled_at: datetime | None = None
     meet_link: str | None = None
 
 

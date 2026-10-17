@@ -1,5 +1,8 @@
+from datetime import datetime, timezone
+
 from fastapi import BackgroundTasks
 from sqlalchemy import or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config.logging_config import logger
@@ -13,7 +16,7 @@ from app.utils.email import (
     send_booking_created_email,
     send_booking_declined_email,
 )
-from app.utils.errors import ConflictError, NotFoundError
+from app.utils.errors import ConflictError, NotFoundError, ValidationError
 
 VALID_TRANSITIONS = {
     "PENDING": ["CONFIRMED", "DECLINED", "CANCELLED"],
@@ -56,27 +59,38 @@ async def create_booking(db: AsyncSession, data: dict, current_user, background_
     if listing.landlord_id == current_user.id:
         raise ConflictError("Cannot book your own listing")
 
-    if data.get("availability_slot_id"):
-        slot_result = await db.execute(select(AvailabilitySlot).where(AvailabilitySlot.id == data["availability_slot_id"]))
-        slot = slot_result.scalar_one_or_none()
-        if not slot or slot.listing_id != data["listing_id"]:
-            raise NotFoundError("Availability slot not found")
-        if slot.is_booked:
-            raise ConflictError("Availability slot is already booked")
+    # Lock the slot row (held until the request-end commit in get_db) so concurrent bookings
+    # against the same slot serialize on the check-then-act below. SQLite ignores FOR UPDATE,
+    # so the test suite still runs.
+    slot_result = await db.execute(
+        select(AvailabilitySlot).where(AvailabilitySlot.id == data["availability_slot_id"]).with_for_update()
+    )
+    slot = slot_result.scalar_one_or_none()
+    if not slot or slot.listing_id != data["listing_id"]:
+        raise NotFoundError("Availability slot not found")
+    if slot.is_booked:
+        raise ConflictError("Availability slot is already booked")
+    # SQLite (tests) returns naive datetimes for TIMESTAMP columns; treat those as UTC.
+    # Postgres (asyncpg) returns timezone-aware ones.
+    slot_start = slot.start_time if slot.start_time.tzinfo else slot.start_time.replace(tzinfo=timezone.utc)
+    if slot_start < datetime.now(timezone.utc):
+        raise ValidationError("Cannot book a slot in the past")
 
     data["candidate_id"] = current_user.id
     data["landlord_id"] = listing.landlord_id
+    data["scheduled_at"] = slot.start_time
 
     booking = Booking(**data)
     db.add(booking)
-    await db.flush()
-    await db.refresh(booking)
+    slot.is_booked = True
 
-    if booking.availability_slot_id:
-        slot_result = await db.execute(select(AvailabilitySlot).where(AvailabilitySlot.id == booking.availability_slot_id))
-        slot = slot_result.scalar_one_or_none()
-        if slot:
-            slot.is_booked = True
+    # The unique index is the DB-level backstop: a request that passed the is_booked check
+    # before our lock lost the race and must surface as 409, not a masked 500.
+    try:
+        await db.flush()
+        await db.refresh(booking)
+    except IntegrityError:
+        raise ConflictError("Availability slot is already booked")
 
     try:
         tenant_r = await db.execute(select(User).where(User.id == booking.candidate_id))
@@ -114,6 +128,15 @@ async def update_booking(db: AsyncSession, booking_id: int, data: dict,current_u
         allowed = VALID_TRANSITIONS.get(booking.status, [])
         if data["status"] not in allowed:
             raise ConflictError(f"Cannot transition booking from {booking.status} to {data['status']}")
+
+        # Cancelling or declining frees the slot so it can be booked again.
+        if new_status in ("CANCELLED", "DECLINED") and booking.availability_slot_id:
+            slot_r = await db.execute(
+                select(AvailabilitySlot).where(AvailabilitySlot.id == booking.availability_slot_id)
+            )
+            slot = slot_r.scalar_one_or_none()
+            if slot:
+                slot.is_booked = False
 
     for key, value in data.items():
         if value is not None:

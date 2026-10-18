@@ -40,11 +40,19 @@ from app.config.limiter import limiter
 from app.main import app
 from app.models.listing import Listing
 from app.models.user import User
+from app.schemas.listing import MAX_YEAR_BUILT, MIN_YEAR_BUILT
 
 # --- Make the Postgres-flavoured metadata compatible with the SQLite test DB ---
 
 # date_built has a Postgres-only server default (EXTRACT(YEAR FROM CURRENT_DATE)::INTEGER)
 Listing.__table__.c.date_built.server_default = DefaultClause(text("CAST(strftime('%Y', 'now') AS INTEGER)"))
+
+# The date_built CHECK constraint uses Postgres-only EXTRACT(); rewrite its sqltext for SQLite,
+# which also forbids non-deterministic functions (strftime) inside CHECK constraints. The test
+# DB is ephemeral (per-test in-memory), so static bounds matching the schema constants are fine.
+for _constraint in Listing.__table__.constraints:
+    if getattr(_constraint, "name", None) == "date_built":
+        _constraint.sqltext = text(f"date_built >= {MIN_YEAR_BUILT} AND date_built <= {MAX_YEAR_BUILT}")
 
 # Drop Postgres-only full-text-search GIN indexes (to_tsvector expressions)
 for _table in Base.metadata.tables.values():

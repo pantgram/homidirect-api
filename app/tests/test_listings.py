@@ -1,3 +1,5 @@
+from datetime import date
+
 from app.tests.conftest import API, create_listing, headers_from_tokens, listing_payload, sync_user
 
 
@@ -47,6 +49,47 @@ class TestCreateListing:
 
         assert response.status_code == 500
         assert response.json()["error"] == "Internal Server Error"
+
+
+class TestDateBuiltValidation:
+    async def test_create_rejects_year_below_minimum(self, client, landlord_headers):
+        response = await client.post(f"{API}/listings/", json=listing_payload(dateBuilt=1700), headers=landlord_headers)
+
+        assert response.status_code == 422
+
+    async def test_create_rejects_future_year(self, client, landlord_headers):
+        response = await client.post(f"{API}/listings/", json=listing_payload(dateBuilt=3000), headers=landlord_headers)
+
+        assert response.status_code == 422
+
+    async def test_create_accepts_current_year(self, client, landlord_headers):
+        body = await create_listing(client, landlord_headers, dateBuilt=date.today().year)
+
+        assert body["dateBuilt"] == date.today().year
+
+    async def test_update_rejects_invalid_year(self, client, listing, landlord_headers):
+        response = await client.patch(
+            f"{API}/listings/{listing['id']}", json={"dateBuilt": 1700}, headers=landlord_headers
+        )
+
+        assert response.status_code == 422
+
+    async def test_search_rejects_invalid_min_date_built(self, client):
+        response = await client.get(f"{API}/listings/search", params={"minDateBuilt": 1700})
+
+        assert response.status_code == 422
+
+    async def test_search_filters_by_date_built_range(self, client, landlord_headers):
+        old = await create_listing(client, landlord_headers, dateBuilt=1980)
+        new = await create_listing(client, landlord_headers, dateBuilt=2020)
+
+        recent = await client.get(f"{API}/listings/search", params={"minDateBuilt": 2000})
+
+        assert [item["id"] for item in recent.json()["data"]] == [new["id"]]
+
+        old_range = await client.get(f"{API}/listings/search", params={"minDateBuilt": 1900, "maxDateBuilt": 1990})
+
+        assert [item["id"] for item in old_range.json()["data"]] == [old["id"]]
 
 
 class TestGetListing:

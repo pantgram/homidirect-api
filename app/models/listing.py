@@ -79,6 +79,10 @@ class Listing(Base):
         sa.CheckConstraint("bathrooms >= 0", name="bathrooms"),
         sa.CheckConstraint("area >= 0", name="area"),
         sa.CheckConstraint("views_count >= 0", name="views_count"),
+        sa.CheckConstraint(
+            "date_built >= 1800 AND date_built <= EXTRACT(YEAR FROM CURRENT_DATE)::INTEGER",
+            name="date_built",
+        ),
         sa.Index("listings_verification_status_idx", "verification_status"),
         sa.Index("listings_is_featured_idx", "is_featured"),
         sa.Index("listings_featured_until_idx", "featured_until"),

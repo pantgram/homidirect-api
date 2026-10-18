@@ -9,6 +9,8 @@ from app.models.user import User
 from app.models.user import User as UserModel
 from app.schemas.common import MessageResponse
 from app.schemas.listing import (
+    MAX_YEAR_BUILT,
+    MIN_YEAR_BUILT,
     ContactOwnerRequest,
     CreateListingRequest,
     ListingDetailResponse,
@@ -54,8 +56,8 @@ async def search_listings(
     furnished: bool | None = None,
     date_available_from: str | None = Query(default=None, alias="dateAvailableFrom"),
     date_available_to: str | None = Query(default=None, alias="dateAvailableTo"),
-    min_date_built: int | None = Query(default=None, alias="minDateBuilt"),
-    max_date_built: int | None = Query(default=None, alias="maxDateBuilt"),
+    min_date_built: int | None = Query(default=None, alias="minDateBuilt", ge=MIN_YEAR_BUILT, le=MAX_YEAR_BUILT),
+    max_date_built: int | None = Query(default=None, alias="maxDateBuilt", ge=MIN_YEAR_BUILT, le=MAX_YEAR_BUILT),
     is_featured: bool | None = Query(default=None, alias="isFeatured"),
     verification_status: str | None = Query(default=None, alias="verificationStatus"),
     sort_by: str = Query(default="featured", alias="sortBy"),

@@ -1,11 +1,16 @@
 from datetime import date, datetime
 from typing import Literal
 
+from pydantic import Field
+
 from app.schemas.base import CamelModel
 from app.schemas.common import Pagination
 
 status = Literal["ACTIVE", "DRAFT"]
 floors = Literal["basement", "semi-basement", "ground", "1st", "2nd", "3rd", "4th", "5th", "6th+"]
+
+MIN_YEAR_BUILT = 1800
+MAX_YEAR_BUILT = date.today().year
 
 class ListingImageBasic(CamelModel):
     id: int
@@ -70,7 +75,7 @@ class CreateListingRequest(CamelModel):
     parking_space: bool | None = None
     furnished: bool | None = None
     date_available: date | None = None
-    date_built: int | None = None
+    date_built: int | None = Field(default=None, ge=MIN_YEAR_BUILT, le=MAX_YEAR_BUILT)
     country: str | None = None
     address: str | None = None
     latitude: float | None = None
@@ -98,7 +103,7 @@ class UpdateListingRequest(CamelModel):
     parking_space: bool | None = None
     furnished: bool | None = None
     date_available: date | None = None
-    date_built: int | None = None
+    date_built: int | None = Field(default=None, ge=MIN_YEAR_BUILT, le=MAX_YEAR_BUILT)
     country: str | None = None
     address: str | None = None
     latitude: float | None = None

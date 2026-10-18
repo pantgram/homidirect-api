@@ -160,7 +160,7 @@ class TestCurrentUserAuth:
         response = await client.get(f"{API}/users/me", headers={"Authorization": f"Bearer {token}"})
 
         assert response.status_code == 401
-        assert response.json()["message"] == "User not found"
+        assert response.json()["message"] == "Unauthorized"
 
     async def test_anonymous_role_treated_as_unauthenticated_for_optional_user(self, client):
         token = make_test_token(str(uuid.uuid4()), "anon-search@example.com", role="anonymous")

@@ -31,15 +31,14 @@ No CI, no pre-commit. Work happens on the `develop` branch.
 - Sessions auto-commit: `get_db` in `app/config/database.py` commits at request end and rolls back on exception. Services/routers never call `db.commit()`.
 - Errors: raise `AppError` subclasses from `app/utils/errors.py` (`NotFoundError`, `ConflictError`, ...). Handlers emit `{"error", "message"}`; unhandled exceptions are masked as a generic 500 (logged).
 - JSON is camelCase on the wire: every schema extends `CamelModel` (`app/schemas/base.py` — snake_case attributes, camelCase aliases, `populate_by_name=True`); `CamelCaseMiddleware` converts responses too.
-- Auth is delegated to Supabase: JWTs verified via JWKS in `app/dependencies/auth.py`. `get_current_user` auto-creates a profile row (via `auth_service.sync_user`) for unknown `sub`s. RBAC with `require_role`/`require_admin`, ownership with the `verify_*_ownership` helpers in the same file; `ADMIN` bypasses all role/ownership checks.
+- Auth is delegated to Supabase: JWTs verified via JWKS in `app/dependencies/auth.py`. `get_current_user` never auto-creates profiles — an unknown `sub` is a 401 `Unauthorized`; `POST /auth/sync` is the only profile-creation path. That endpoint takes **no request body**: profile claims (`first_name`, `last_name`, `role`) are read from the token's `user_metadata` (snake_case keys). The README's example sending a body is stale. RBAC with `require_role`/`require_admin`, ownership with the `verify_*_ownership` helpers in the same file; `ADMIN` bypasses all role/ownership checks.
 
 ## Testing (`app/tests/`)
 
 - `conftest.py` injects fake env vars **before** importing the app, using `os.environ.setdefault` — real exported env vars leak into tests.
-- Postgres → SQLite compatibility is patched in conftest (SQLite server default for `Listing.date_built`, full-text GIN `TextClause` indexes dropped from metadata). If you add Postgres-only constructs to models, update conftest or the suite breaks.
+- Postgres → SQLite compatibility is patched in conftest: SQLite server default **and** rewritten CHECK constraint for `Listing.date_built`, full-text GIN `TextClause` indexes dropped from metadata. If you add Postgres-only constructs to models, update conftest or the suite breaks.
 - Autouse fixtures disable rate limiting and mock email/R2/Supabase-admin. Mocks patch the name **inside the consuming module** (e.g. `verification_service.upload_to_r2`, since services do `from app.utils.storage import upload_to_r2`) — wire new external calls into `mock_external_services` in conftest.
 - JWT verification is replaced with HS256 test tokens (`role=authenticated`). Use the helpers/fixtures: `make_test_token`, `sync_user`, `create_db_user`, `auth_headers_for`, `create_listing`, `landlord`/`tenant`/`admin` (+`*_headers`).
-- Pre-existing failures on `develop` (Oct 2026, not caused by your change): `test_auth.py::test_unknown_supabase_user` and `test_users.py::test_supabase_auth_user_deleted_after_account_deletion` — the auto-sync path inserts NULL names into now-non-nullable columns.
 
 ## Alembic
 

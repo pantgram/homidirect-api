@@ -1,7 +1,7 @@
-from pydantic import field_validator
-
 from app.schemas.base import CamelModel
 
+# Allowlist for roles that may arrive from Supabase user_metadata during
+# profile sync (app/services/auth.py). ADMIN is deliberately not assignable.
 VALID_ROLES = {"LANDLORD", "TENANT", "BOTH"}
 
 
@@ -20,19 +20,6 @@ class UserWithRoleResponse(CamelModel):
     email: str
     role: str
     created_at: str
-
-
-class UpdateUserRequest(CamelModel):
-    first_name: str | None = None
-    last_name: str | None = None
-    role: str | None = None
-
-    @field_validator("role")
-    @classmethod
-    def validate_role(cls, v: str | None) -> str | None:
-        if v is not None and v not in VALID_ROLES:
-            raise ValueError(f"Role must be one of: {', '.join(sorted(VALID_ROLES))}")
-        return v
 
 
 class UserIdParam(CamelModel):

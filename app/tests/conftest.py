@@ -71,19 +71,20 @@ TEST_AUTH_SECRET = "test-supabase-auth-secret-0123456789abcdef"
 # --- Supabase Auth test doubles ---
 
 
-def make_test_token(sub: str, email: str, role: str = "authenticated") -> str:
+def make_test_token(
+    sub: str, email: str, role: str = "authenticated", user_metadata: dict | None = None
+) -> str:
     now = datetime.now(timezone.utc)
-    return pyjwt.encode(
-        {
-            "sub": sub,
-            "email": email,
-            "role": role,
-            "iat": int(now.timestamp()),
-            "exp": int((now + timedelta(hours=1)).timestamp()),
-        },
-        TEST_AUTH_SECRET,
-        algorithm="HS256",
-    )
+    claims = {
+        "sub": sub,
+        "email": email,
+        "role": role,
+        "iat": int(now.timestamp()),
+        "exp": int((now + timedelta(hours=1)).timestamp()),
+    }
+    if user_metadata is not None:
+        claims["user_metadata"] = user_metadata
+    return pyjwt.encode(claims, TEST_AUTH_SECRET, algorithm="HS256")
 
 
 def _fake_verify_supabase_jwt(token: str) -> dict:
@@ -115,14 +116,16 @@ async def sync_user(
     sub: str | None = None,
 ) -> dict:
     """Create the profile row for a Supabase-authenticated user (POST /auth/sync)
-    and return {"user", "token", "sub", "email"}."""
+    and return {"user", "token", "sub", "email"}.
+
+    Profile data travels in the token's user_metadata with snake_case keys,
+    exactly like real Supabase access tokens — the endpoint has no request body.
+    """
     sub = sub or str(uuid.uuid4())
-    token = make_test_token(sub, email)
-    response = await client.post(
-        f"{API}/auth/sync",
-        json={"firstName": first_name, "lastName": last_name, "role": role},
-        headers={"Authorization": f"Bearer {token}"},
+    token = make_test_token(
+        sub, email, user_metadata={"first_name": first_name, "last_name": last_name, "role": role}
     )
+    response = await client.post(f"{API}/auth/sync", headers={"Authorization": f"Bearer {token}"})
     assert response.status_code == 200, response.text
     return {"user": response.json()["user"], "token": token, "sub": sub, "email": email}
 

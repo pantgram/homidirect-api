@@ -47,8 +47,8 @@ class TestOpenApiSpec:
 
 
 class TestErrorFormats:
-    async def test_validation_error_format(self, client):
-        response = await client.post(f"{API}/auth/sync", json={})
+    async def test_validation_error_format(self, client, tenant_headers):
+        response = await client.get(f"{API}/users/not-an-int", headers=tenant_headers)
 
         assert response.status_code == 422
         body = response.json()

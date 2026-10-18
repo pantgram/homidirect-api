@@ -13,7 +13,6 @@ from app.config.settings import settings
 from app.models.listing import Listing
 from app.models.user import User
 from app.utils.errors import ForbiddenError, NotFoundError, UnauthorizedError
-from app.services import auth as auth_service
 
 security_scheme = HTTPBearer(auto_error=False)
 
@@ -38,6 +37,7 @@ def verify_supabase_jwt(token: str) -> dict:
     legacy HS256 shared secret when SUPABASE_JWT_SECRET is configured.
     """
     issuer = f"{settings.supabase_url.rstrip('/')}/auth/v1"
+    audience = "authenticated"
     try:
         if settings.supabase_jwt_secret:
             payload = jwt.decode(
@@ -49,7 +49,6 @@ def verify_supabase_jwt(token: str) -> dict:
             )
         else:
             signing_key = _get_jwk_client().get_signing_key_from_jwt(token)
-            audience = "authenticated"
             payload = jwt.decode(
                 token,
                 signing_key.key,
@@ -90,8 +89,9 @@ async def get_current_user(
     result = await db.execute(select(User).where(User.supabase_user_id == supabase_user_id))
     user = result.scalar_one_or_none()
     if user is None:
-        metadata = payload.get("user_metadata", {})
-        user = await auth_service.sync_user(db, supabase_user_id, payload.get("email"), metadata.get("first_name"), metadata.get("last_name"), metadata.get("role"))
+        # Valid Supabase token but no local profile row yet. get_current_user
+        # never auto-creates: POST /auth/sync is the only creation entry point.
+        raise UnauthorizedError("Unauthorized")
     if user.status in ("BANNED", "SUSPENDED"):
         raise ForbiddenError(f"Account is {user.status.lower()}")
     return user

@@ -1,6 +1,7 @@
 import uuid
 
 import jwt as pyjwt
+import pytest
 
 from app.tests.conftest import (
     API,
@@ -42,40 +43,77 @@ class TestSync:
         assert updated["user"]["firstName"] == "Renamed"
         assert updated["user"]["role"] == "LANDLORD"
 
-    async def test_sync_rejects_admin_role(self, client):
-        response = await client.post(
-            f"{API}/auth/sync",
-            json={"firstName": "Sneaky", "lastName": "Admin", "role": "ADMIN"},
-            headers={"Authorization": f"Bearer {make_test_token(str(uuid.uuid4()), 'sneaky@example.com')}"},
+    async def test_sync_updates_names_and_email_from_claims(self, client):
+        """After supabase.auth.updateUser the new claims overwrite the stored profile."""
+        data = await sync_user(client, email="before@example.com", first_name="Old", last_name="Name")
+        token = make_test_token(
+            data["sub"],
+            "after@example.com",
+            user_metadata={"first_name": "New", "last_name": "Name"},
         )
 
-        assert response.status_code == 422
+        response = await client.post(f"{API}/auth/sync", headers={"Authorization": f"Bearer {token}"})
 
-    async def test_sync_rejects_invalid_role(self, client):
-        response = await client.post(
-            f"{API}/auth/sync",
-            json={"firstName": "Bad", "lastName": "Role", "role": "SUPERUSER"},
-            headers={"Authorization": f"Bearer {make_test_token(str(uuid.uuid4()), 'badrole@example.com')}"},
+        assert response.status_code == 200
+        body = response.json()["user"]
+        assert body["id"] == data["user"]["id"]
+        assert body["firstName"] == "New"
+        assert body["lastName"] == "Name"
+        assert body["email"] == "after@example.com"
+
+    @pytest.mark.parametrize("role", ["LANDLORD", "TENANT", "BOTH"])
+    async def test_sync_copies_allowlisted_role(self, client, role):
+        data = await sync_user(client, email=f"{role.lower()}-copy@example.com", role=role)
+
+        assert data["user"]["role"] == role
+
+    async def test_sync_ignores_admin_role_in_metadata(self, client):
+        """ADMIN can never come from client-writable user_metadata."""
+        data = await sync_user(client, email="no-admin@example.com", role="TENANT")
+        token = make_test_token(
+            data["sub"],
+            "no-admin@example.com",
+            user_metadata={"first_name": "Test", "last_name": "User", "role": "ADMIN"},
         )
 
-        assert response.status_code == 422
+        response = await client.post(f"{API}/auth/sync", headers={"Authorization": f"Bearer {token}"})
+
+        assert response.status_code == 200
+        assert response.json()["user"]["role"] == "TENANT"
+
+    async def test_sync_ignores_invalid_role_in_metadata(self, client):
+        data = await sync_user(client, email="bad-role@example.com", role="LANDLORD")
+        token = make_test_token(
+            data["sub"],
+            "bad-role@example.com",
+            user_metadata={"first_name": "Test", "last_name": "User", "role": "SUPERUSER"},
+        )
+
+        response = await client.post(f"{API}/auth/sync", headers={"Authorization": f"Bearer {token}"})
+
+        assert response.status_code == 200
+        assert response.json()["user"]["role"] == "LANDLORD"
+
+        # On create, an invalid metadata role falls back to the TENANT default.
+        create_token = make_test_token(
+            str(uuid.uuid4()),
+            "default-role@example.com",
+            user_metadata={"first_name": "New", "last_name": "User", "role": "SUPERUSER"},
+        )
+        created = await client.post(f"{API}/auth/sync", headers={"Authorization": f"Bearer {create_token}"})
+        assert created.json()["user"]["role"] == "TENANT"
 
     async def test_sync_conflicting_email(self, client, session):
         await create_db_user(session, email="taken@example.com")
 
-        response = await client.post(
-            f"{API}/auth/sync",
-            json={"firstName": "Conflicted", "lastName": "User", "role": "TENANT"},
-            headers={"Authorization": f"Bearer {make_test_token(str(uuid.uuid4()), 'taken@example.com')}"},
-        )
+        token = make_test_token(str(uuid.uuid4()), "taken@example.com")
+        response = await client.post(f"{API}/auth/sync", headers={"Authorization": f"Bearer {token}"})
 
         assert response.status_code == 409
         assert response.json() == {"error": "ConflictError", "message": "Email already registered"}
 
     async def test_sync_requires_authentication(self, client):
-        response = await client.post(
-            f"{API}/auth/sync", json={"firstName": "No", "lastName": "Auth", "role": "TENANT"}
-        )
+        response = await client.post(f"{API}/auth/sync")
 
         assert response.status_code == 401
 
@@ -85,11 +123,7 @@ class TestSync:
             "wrong-secret-that-is-long-enough-for-hs256",
             algorithm="HS256",
         )
-        response = await client.post(
-            f"{API}/auth/sync",
-            json={"firstName": "Tampered", "lastName": "Token", "role": "TENANT"},
-            headers={"Authorization": f"Bearer {token}"},
-        )
+        response = await client.post(f"{API}/auth/sync", headers={"Authorization": f"Bearer {token}"})
 
         assert response.status_code == 401
 
@@ -97,11 +131,7 @@ class TestSync:
         token = pyjwt.encode(
             {"sub": str(uuid.uuid4()), "role": "authenticated"}, TEST_AUTH_SECRET, algorithm="HS256"
         )
-        response = await client.post(
-            f"{API}/auth/sync",
-            json={"firstName": "No", "lastName": "Email", "role": "TENANT"},
-            headers={"Authorization": f"Bearer {token}"},
-        )
+        response = await client.post(f"{API}/auth/sync", headers={"Authorization": f"Bearer {token}"})
 
         assert response.status_code == 401
 

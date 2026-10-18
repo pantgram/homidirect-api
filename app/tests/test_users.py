@@ -32,55 +32,6 @@ class TestGetUser:
         assert response.status_code == 401
 
 
-class TestUpdateUser:
-    async def test_update_own_profile(self, client, tenant, tenant_headers):
-        response = await client.patch(
-            f"{API}/users/{tenant['user']['id']}",
-            json={"firstName": "Updated", "lastName": "Name"},
-            headers=tenant_headers,
-        )
-
-        assert response.status_code == 200
-        body = response.json()["user"]
-        assert body["firstName"] == "Updated"
-        assert body["lastName"] == "Name"
-        assert body["email"] == "tenant@example.com"
-
-    async def test_cannot_update_other_user(self, client, tenant, landlord, tenant_headers):
-        response = await client.patch(
-            f"{API}/users/{landlord['user']['id']}",
-            json={"firstName": "Hacker"},
-            headers=tenant_headers,
-        )
-
-        assert response.status_code == 404
-        assert response.json()["message"] == "User not found"
-
-    async def test_email_cannot_be_changed_via_update(self, client, tenant, landlord, tenant_headers):
-        response = await client.patch(
-            f"{API}/users/{tenant['user']['id']}",
-            json={"email": landlord["user"]["email"]},
-            headers=tenant_headers,
-        )
-
-        assert response.status_code == 200
-        assert response.json()["user"]["email"] == "tenant@example.com"
-
-    async def test_update_unknown_user(self, client, tenant_headers):
-        response = await client.patch(
-            f"{API}/users/999999", json={"firstName": "Ghost"}, headers=tenant_headers
-        )
-
-        assert response.status_code == 404
-
-    async def test_update_invalid_role(self, client, tenant, tenant_headers):
-        response = await client.patch(
-            f"{API}/users/{tenant['user']['id']}", json={"role": "ADMIN"}, headers=tenant_headers
-        )
-
-        assert response.status_code == 422
-
-
 class TestDeleteUser:
     async def test_delete_own_account(self, client, tenant, tenant_headers):
         response = await client.delete(f"{API}/users/{tenant['user']['id']}", headers=tenant_headers)

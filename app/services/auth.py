@@ -5,19 +5,29 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config.logging_config import logger
 from app.models.user import User
+from app.schemas.user import VALID_ROLES
 from app.utils.errors import ConflictError
+
+# Matches the first_name/last_name column limit on users.
+_MAX_NAME_LENGTH = 100
 
 
 async def sync_user(
     db: AsyncSession,
     supabase_user_id: uuid.UUID,
     email: str,
-    first_name: str,
-    last_name: str,
-    role: str,
+    first_name: str | None,
+    last_name: str | None,
+    role: str | None,
 ) -> User:
     """Create the app profile row for an authenticated Supabase user, or update
-    the existing one. Idempotent; safe to call after every signup/login."""
+    the existing one from Supabase-owned claims. Idempotent; safe to call after
+    every signup/login and after every supabase.auth.updateUser.
+
+    Supabase is the single source of truth for email, names and role: missing or
+    invalid claims keep the stored values, and ADMIN can never come from
+    user_metadata.
+    """
     result = await db.execute(select(User).where(User.supabase_user_id == supabase_user_id))
     user = result.scalar_one_or_none()
 
@@ -29,15 +39,20 @@ async def sync_user(
         user = User(
             supabase_user_id=supabase_user_id,
             email=email,
-            first_name=first_name,
-            last_name=last_name,
-            role=role,
+            first_name=(first_name or "").strip()[:_MAX_NAME_LENGTH],
+            last_name=(last_name or "").strip()[:_MAX_NAME_LENGTH],
+            role=role if role in VALID_ROLES else "TENANT",
         )
         db.add(user)
     else:
-        user.first_name = first_name
-        user.last_name = last_name
-        user.role = role
+        clean_first_name = (first_name or "").strip()[:_MAX_NAME_LENGTH]
+        if clean_first_name:
+            user.first_name = clean_first_name
+        clean_last_name = (last_name or "").strip()[:_MAX_NAME_LENGTH]
+        if clean_last_name:
+            user.last_name = clean_last_name
+        if role in VALID_ROLES:
+            user.role = role
         if user.email != email:
             user.email = email
 

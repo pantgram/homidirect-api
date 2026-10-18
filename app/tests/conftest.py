@@ -180,10 +180,9 @@ async def create_listing(client: AsyncClient, headers: dict, **overrides) -> dic
     return response.json()["listing"]
 
 
-def slot_payload(listing_id: int, hours_from_now: float = 24, duration_hours: float = 1) -> dict:
+def slot_payload(listing_id: int, hours_from_now: float = 24) -> dict:
     start = datetime.now(timezone.utc) + timedelta(hours=hours_from_now)
-    end = start + timedelta(hours=duration_hours)
-    return {"listingId": listing_id, "startTime": start.isoformat(), "endTime": end.isoformat()}
+    return {"listingId": listing_id, "startTime": start.isoformat()}
 
 
 # --- Fixtures ---
@@ -242,9 +241,7 @@ async def db_engine():
 
     @event.listens_for(engine.sync_engine, "connect")
     def _configure_sqlite(dbapi_connection, _):
-        dbapi_connection.create_function(
-            "NOW", 0, lambda: datetime.now(timezone.utc).isoformat(sep=" ")
-        )
+        dbapi_connection.create_function("NOW", 0, lambda: datetime.now(timezone.utc).isoformat(sep=" "))
         cursor = dbapi_connection.cursor()
         cursor.execute("PRAGMA foreign_keys=ON")
         cursor.close()

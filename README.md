@@ -13,7 +13,7 @@ Built with **FastAPI**, **SQLAlchemy 2.0 (async)**, and **PostgreSQL**. Packaged
 - **Verification** — ownership document uploads (utility bill, title deed, etc.), verification history, admin review queue (approve/reject with notes)
 - **Favorites** — add/remove/check favorite listings, paginated favorites feed
 - **Bookings** — visit booking between tenants and landlords, status lifecycle (pending → confirmed/declined/cancelled) with notification emails. Bookings are slot-only: `POST /bookings` requires `availabilitySlotId` and `scheduledAt` is derived from the slot (not client-supplied). Rescheduling via PATCH is not supported — cancel (or decline) and rebook; both free the slot.
-- **Availability slots** — bookable time windows per listing with overlap checks
+- **Availability slots** — fixed 30-minute bookable windows per listing (`startTime` only; `endTime` is derived server-side)
 - **Geocoding** — Geoapify-powered search, address autocomplete, and reverse geocoding with a DB cache layer
 - **Cross-cutting** — camelCase JSON responses (middleware + Pydantic aliases), consistent error format, slowapi rate limiting on auth endpoints, CORS
 

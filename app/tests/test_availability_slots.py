@@ -19,18 +19,19 @@ class TestCreateSlot:
         assert body["landlordId"] == listing["landlordId"]
         assert body["isBooked"] is False
 
-    async def test_end_time_must_be_after_start_time(self, client, listing, landlord_headers):
-        start = datetime.now(timezone.utc) + timedelta(days=1)
-        payload = {"listingId": listing["id"], "startTime": iso(start), "endTime": iso(start - timedelta(hours=1))}
+    async def test_end_time_is_computed_as_start_plus_30_minutes(self, client, listing, landlord_headers):
+        response = await client.post(
+            f"{API}/availability-slots/", json=slot_payload(listing["id"]), headers=landlord_headers
+        )
 
-        response = await client.post(f"{API}/availability-slots/", json=payload, headers=landlord_headers)
-
-        assert response.status_code == 422
+        assert response.status_code == 201
+        body = response.json()["slot"]
+        start = datetime.fromisoformat(body["startTime"])
+        end = datetime.fromisoformat(body["endTime"])
+        assert end - start == timedelta(minutes=30)
 
     async def test_unknown_listing(self, client, landlord_headers):
-        response = await client.post(
-            f"{API}/availability-slots/", json=slot_payload(999999), headers=landlord_headers
-        )
+        response = await client.post(f"{API}/availability-slots/", json=slot_payload(999999), headers=landlord_headers)
 
         assert response.status_code == 404
         assert response.json()["message"] == "Listing not found"
@@ -39,9 +40,7 @@ class TestCreateSlot:
         other = await sync_user(client, email="slot-landlord@example.com", role="LANDLORD")
         headers = headers_from_tokens(other)
 
-        response = await client.post(
-            f"{API}/availability-slots/", json=slot_payload(listing["id"]), headers=headers
-        )
+        response = await client.post(f"{API}/availability-slots/", json=slot_payload(listing["id"]), headers=headers)
 
         assert response.status_code == 403
         assert response.json()["message"] == "You do not own this listing"

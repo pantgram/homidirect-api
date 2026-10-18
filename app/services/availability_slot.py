@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -7,6 +7,9 @@ from app.config.logging_config import logger
 from app.models.availability_slot import AvailabilitySlot
 from app.models.listing import Listing
 from app.utils.errors import ConflictError, ForbiddenError, NotFoundError
+
+# Every slot is exactly 30 minutes long; the end time is derived, never stored.
+SLOT_DURATION = timedelta(minutes=30)
 
 
 async def get_slots_by_listing(db: AsyncSession, listing_id: int):
@@ -18,11 +21,13 @@ async def get_slots_by_listing(db: AsyncSession, listing_id: int):
 
 async def get_available_slots(db: AsyncSession, listing_id: int):
     result = await db.execute(
-        select(AvailabilitySlot).where(
+        select(AvailabilitySlot)
+        .where(
             AvailabilitySlot.listing_id == listing_id,
             AvailabilitySlot.is_booked == False,
             AvailabilitySlot.start_time >= datetime.now(timezone.utc),
-        ).order_by(AvailabilitySlot.start_time)
+        )
+        .order_by(AvailabilitySlot.start_time)
     )
     return result.scalars().all()
 
@@ -58,7 +63,7 @@ async def update_slot(db: AsyncSession, slot_id: int, data: dict, current_user):
         raise ForbiddenError("You do not own this slot")
 
     # Moving a booked slot would desynchronize its bookings' scheduled_at.
-    if slot.is_booked and any(key in data for key in ("start_time", "end_time")):
+    if slot.is_booked and "start_time" in data:
         raise ConflictError("Cannot change the time of a booked slot")
 
     for key, value in data.items():

@@ -6,7 +6,6 @@ from . import (
     bookings,
     favorites,
     geocoding,
-    google_auth,
     health,
     listing_images,
     listings,
@@ -16,7 +15,6 @@ from . import (
 
 router = APIRouter(prefix="/v1")
 
-router.include_router(google_auth.router)
 router.include_router(auth.router, prefix="/auth")
 router.include_router(users.router)
 router.include_router(listings.router)

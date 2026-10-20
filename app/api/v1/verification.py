@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, File, Form, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config.database import get_db
+from app.config.logging_config import logger
 from app.config.settings import settings
 from app.dependencies.auth import (
     get_current_user,
@@ -101,6 +102,7 @@ async def upload_document(
         db, listing_id, document_type, current_user.id,
         file_bytes, file.filename or "document", detected_type,
     )
+    logger.info("Document %s uploaded for listing %s by user %s", doc.id, listing_id, current_user.id)
     return {"document": _format_doc(doc)}
 
 
@@ -113,6 +115,7 @@ async def delete_document(
 ):
     await verify_listing_ownership(listing_id, db, current_user)
     await ver_service.delete_document(db, document_id, listing_id, current_user.id)
+    logger.info("Document %s deleted from listing %s by user %s", document_id, listing_id, current_user.id)
 
 
 admin_router = APIRouter(prefix="/admin/verifications", tags=["Admin Verification"])
@@ -126,6 +129,7 @@ async def review_verification(
     current_user: User = Depends(require_admin),
 ):
     listing = await ver_service.review_verification(db, listing_id, body.status, body.notes, current_user.id)
+    logger.info("Verification for listing %s set to %s by admin %s", listing_id, listing.verification_status, current_user.id)
     return {"message": "Verification reviewed", "verification_status": listing.verification_status}
 
 

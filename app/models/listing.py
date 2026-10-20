@@ -9,7 +9,6 @@ if TYPE_CHECKING:
 
     from app.models.availability_slot import AvailabilitySlot
     from app.models.booking import Booking
-    from app.models.featured_listing_purchase import FeaturedListingPurchase
     from app.models.interested_listing import InterestedListing
     from app.models.listing_image import ListingImage
     from app.models.user import User
@@ -18,11 +17,9 @@ if TYPE_CHECKING:
 from app.config.database import Base
 from app.models.enums import (
     floors_enum,
-    listing_status_enum,
     property_type_enum,
     publication_status_enum,
     verification_status_enum,
-    zone_type_enum,
 )
 
 
@@ -42,8 +39,6 @@ class Listing(Base):
     elevator: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, server_default=sa.false())
     parking_space: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, server_default=sa.false())
     furnished: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, server_default=sa.false())
-    zone_type: Mapped[str] = mapped_column(zone_type_enum, nullable=False, server_default="Residential")
-    listing_status: Mapped[str | None] = mapped_column(listing_status_enum)
     publication_status: Mapped[str] = mapped_column(publication_status_enum, nullable=False, server_default="ACTIVE")
     date_available: Mapped[sa.Date] = mapped_column(sa.Date, nullable=False, server_default=sa.func.now())
     date_built: Mapped[int] = mapped_column(sa.Integer, nullable=False, server_default=sa.text("EXTRACT(YEAR FROM CURRENT_DATE)::INTEGER"))
@@ -53,16 +48,15 @@ class Listing(Base):
     latitude: Mapped[float | None] = mapped_column(sa.Float)
     longitude: Mapped[float | None] = mapped_column(sa.Float)
     property_type: Mapped[str] = mapped_column(property_type_enum, nullable=False)
-    available: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, server_default=sa.true())
-    created_at: Mapped[sa.DateTime] = mapped_column(sa.TIMESTAMP, nullable=False, server_default=sa.func.now())
-    updated_at: Mapped[sa.DateTime] = mapped_column(sa.TIMESTAMP, nullable=False, server_default=sa.func.now(), onupdate=sa.func.now())
+    created_at: Mapped[sa.DateTime] = mapped_column(sa.TIMESTAMP(timezone=True), nullable=False, server_default=sa.func.now())
+    updated_at: Mapped[sa.DateTime] = mapped_column(sa.TIMESTAMP(timezone=True), nullable=False, server_default=sa.func.now(), onupdate=sa.func.now())
     landlord_id: Mapped[int] = mapped_column(sa.Integer, sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     landlord_phone: Mapped[str | None] = mapped_column(sa.String(20))
     verification_status: Mapped[str] = mapped_column(verification_status_enum, nullable=False, server_default="PENDING")
-    verified_at: Mapped[sa.DateTime | None] = mapped_column(sa.TIMESTAMP)
+    verified_at: Mapped[sa.DateTime | None] = mapped_column(sa.TIMESTAMP(timezone=True))
     verified_by: Mapped[int | None] = mapped_column(sa.Integer, sa.ForeignKey("users.id", ondelete="SET NULL"))
     is_featured: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, server_default=sa.false())
-    featured_until: Mapped[sa.DateTime | None] = mapped_column(sa.TIMESTAMP)
+    featured_until: Mapped[sa.DateTime | None] = mapped_column(sa.TIMESTAMP(timezone=True))
     title_el: Mapped[str] = mapped_column(sa.String(100), nullable=False, server_default="")
     title_en: Mapped[str | None] = mapped_column(sa.String(100))
     description_el: Mapped[str] = mapped_column(sa.Text, nullable=False, server_default="")
@@ -76,7 +70,6 @@ class Listing(Base):
     availability_slots: Mapped[list["AvailabilitySlot"]] = relationship("AvailabilitySlot", back_populates="listing")
     verification_documents: Mapped[list["VerificationDocument"]] = relationship("VerificationDocument", back_populates="listing")
     verification_history_entries: Mapped[list["VerificationHistory"]] = relationship("VerificationHistory", back_populates="listing")
-    featured_purchases: Mapped[list["FeaturedListingPurchase"]] = relationship("FeaturedListingPurchase", back_populates="listing")
 
     __table_args__ = (
         sa.CheckConstraint("price >= 0", name="price"),
@@ -86,6 +79,10 @@ class Listing(Base):
         sa.CheckConstraint("bathrooms >= 0", name="bathrooms"),
         sa.CheckConstraint("area >= 0", name="area"),
         sa.CheckConstraint("views_count >= 0", name="views_count"),
+        sa.CheckConstraint(
+            "date_built >= 1800 AND date_built <= EXTRACT(YEAR FROM CURRENT_DATE)::INTEGER",
+            name="date_built",
+        ),
         sa.Index("listings_verification_status_idx", "verification_status"),
         sa.Index("listings_is_featured_idx", "is_featured"),
         sa.Index("listings_featured_until_idx", "featured_until"),
@@ -96,11 +93,9 @@ class Listing(Base):
         sa.Index("listings_bedrooms_idx", "bedrooms"),
         sa.Index("listings_bathrooms_idx", "bathrooms"),
         sa.Index("listings_area_idx", "area"),
-        sa.Index("listings_available_idx", "available"),
         sa.Index("listings_created_at_idx", "created_at"),
         sa.Index("listings_publication_status_idx", "publication_status"),
         sa.Index("listings_country_idx", "country"),
-        sa.Index("listings_available_featured_idx", "available", "is_featured"),
         sa.Index("listings_city_price_idx", "city", "price"),
         sa.Index("listings_type_city_idx", "property_type", "city"),
         sa.Index("listings_search_en_idx", sa.text("to_tsvector('english', coalesce(title_en, '') || ' ' || coalesce(description_en, ''))"), postgresql_using="gin"),

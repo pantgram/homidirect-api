@@ -3,6 +3,7 @@ import time
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config.logging_config import logger
 from app.config.settings import settings
 from app.models.listing_image import ListingImage
 from app.utils.errors import ConflictError, ForbiddenError, NotFoundError
@@ -37,6 +38,7 @@ async def upload_listing_image(db: AsyncSession, listing_id: int, file_bytes: by
     db.add(img)
     await db.flush()
     await db.refresh(img)
+    logger.info("Image %s stored for listing %s", img.id, listing_id)
     return img
 
 
@@ -49,6 +51,7 @@ async def delete_image(db: AsyncSession, image_id: int, listing_id: int) -> bool
         raise ForbiddenError("Image does not belong on this listing")
     delete_from_r2(get_key_from_url(img.url))
     await db.delete(img)
+    logger.info("Image %s deleted from listing %s", image_id, listing_id)
     return True
 
 
@@ -58,4 +61,5 @@ async def delete_images_by_listing_id(db: AsyncSession, listing_id: int) -> int:
         delete_from_r2(get_key_from_url(img.url))
     for img in images:
         await db.delete(img)
+    logger.info("Deleted %d images for listing %s", len(images), listing_id)
     return len(images)

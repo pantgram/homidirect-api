@@ -1,11 +1,16 @@
 from datetime import date, datetime
 from typing import Literal
 
+from pydantic import Field
+
 from app.schemas.base import CamelModel
 from app.schemas.common import Pagination
 
 status = Literal["ACTIVE", "DRAFT"]
 floors = Literal["basement", "semi-basement", "ground", "1st", "2nd", "3rd", "4th", "5th", "6th+"]
+
+MIN_YEAR_BUILT = 1800
+MAX_YEAR_BUILT = date.today().year
 
 class ListingImageBasic(CamelModel):
     id: int
@@ -28,8 +33,6 @@ class ListingResponse(CamelModel):
     elevator: bool
     parking_space: bool
     furnished: bool
-    zone_type: str
-    listing_status: str | None
     date_available: date
     date_built: int
     views_count: int
@@ -38,7 +41,6 @@ class ListingResponse(CamelModel):
     latitude: float | None
     longitude: float | None
     property_type: str
-    available: bool
     created_at: datetime
     updated_at: datetime
     landlord_id: int
@@ -72,16 +74,13 @@ class CreateListingRequest(CamelModel):
     elevator: bool | None = None
     parking_space: bool | None = None
     furnished: bool | None = None
-    zone_type: str | None = None
-    listing_status: str | None = None
     date_available: date | None = None
-    date_built: int | None = None
+    date_built: int | None = Field(default=None, ge=MIN_YEAR_BUILT, le=MAX_YEAR_BUILT)
     country: str | None = None
     address: str | None = None
     latitude: float | None = None
     longitude: float | None = None
     property_type: str
-    available: bool | None = None
     landlord_id: int
     landlord_phone: str | None = None
     title_el: str
@@ -103,16 +102,13 @@ class UpdateListingRequest(CamelModel):
     elevator: bool | None = None
     parking_space: bool | None = None
     furnished: bool | None = None
-    zone_type: str | None = None
-    listing_status: str | None = None
     date_available: date | None = None
-    date_built: int | None = None
+    date_built: int | None = Field(default=None, ge=MIN_YEAR_BUILT, le=MAX_YEAR_BUILT)
     country: str | None = None
     address: str | None = None
     latitude: float | None = None
     longitude: float | None = None
     property_type: str | None = None
-    available: bool | None = None
     landlord_phone: str | None = None
     title_el: str | None = None
     title_en: str | None = None
@@ -143,13 +139,10 @@ class SearchListingsParams(CamelModel):
     elevator: bool | None = None
     parking_space: bool | None = None
     furnished: bool | None = None
-    zone_type: str | None = None
-    listing_status: str | None = None
     date_available_from: str | None = None
     date_available_to: str | None = None
     min_date_built: int | None = None
     max_date_built: int | None = None
-    available: bool | None = None
     is_featured: bool | None = None
     verification_status: str | None = None
     sort_by: str = "featured"

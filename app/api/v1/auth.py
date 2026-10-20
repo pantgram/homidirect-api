@@ -1,57 +1,58 @@
-from fastapi import APIRouter, BackgroundTasks, Depends, Request
+import uuid
+
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config.database import get_db
 from app.config.limiter import limiter
-from app.dependencies.auth import get_current_user
-from app.models.user import User
-from app.schemas.auth import (
-    ForgotPasswordRequest,
-    LoginRequest,
-    LoginResponse,
-    RefreshResponse,
-    RefreshTokenRequest,
-    RegisterRequest,
-    RegisterResponse,
-    ResetPasswordRequest,
-)
-from app.schemas.common import MessageResponse
+from app.config.logging_config import logger
+from app.dependencies import auth as auth_deps
+from app.schemas.user import UserDetailResponse
 from app.services import auth as auth_service
+from app.utils.errors import UnauthorizedError
 
 router = APIRouter(prefix="", tags=["Auth"])
 
 
-@router.post("/register", response_model=RegisterResponse)
-@limiter.limit("5/minute")
-async def register(request: Request, body: RegisterRequest, db: AsyncSession = Depends(get_db)):
-    return await auth_service.register(db, body.first_name, body.last_name, body.email, body.password, body.role)
-
-
-@router.post("/login", response_model=LoginResponse)
+@router.post("/sync", response_model=UserDetailResponse)
 @limiter.limit("10/minute")
-async def login(request: Request, body: LoginRequest, db: AsyncSession = Depends(get_db)):
-    return await auth_service.login(db, body.email, body.password)
+async def sync_profile(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    credentials=Depends(auth_deps.security_scheme),
+):
+    """Create or update the app profile row for the authenticated Supabase user.
 
+    Single write path for profile data: Supabase auth.users is the source of
+    truth, this endpoint only mirrors it. The frontend calls this after
+    supabase-js signUp **and** after every `supabase.auth.updateUser`
+    (names or email change). Idempotent.
 
-@router.post("/refresh", response_model=RefreshResponse)
-async def refresh(body: RefreshTokenRequest, db: AsyncSession = Depends(get_db)):
-    return await auth_service.refresh(db, body.refresh_token)
+    Profile claims are read from the token's ``user_metadata`` — keys are
+    snake_case (``first_name``, ``last_name``), matching what signUp writes.
+    """
+    if credentials is None:
+        raise UnauthorizedError("Unauthorized")
+    claims = auth_deps.verify_supabase_jwt(credentials.credentials)
+    sub = claims.get("sub")
+    email = claims.get("email")
+    metadata = claims.get("user_metadata", {})
+    if not sub or not email:
+        raise UnauthorizedError("Unauthorized")
+    try:
+        supabase_user_id = uuid.UUID(sub)
+    except (ValueError, AttributeError):
+        raise UnauthorizedError("Unauthorized")
 
-
-@router.post("/forgot-password", response_model=MessageResponse)
-@limiter.limit("3/minute")
-async def forgot_password(request: Request, body: ForgotPasswordRequest,
-    background_tasks: BackgroundTasks, db: AsyncSession = Depends(get_db)):
-    return await auth_service.forgot_password(db, body.email, background_tasks)
-
-
-@router.post("/reset-password", response_model=MessageResponse)
-@limiter.limit("3/minute")
-async def reset_password(request: Request, body: ResetPasswordRequest, db: AsyncSession = Depends(get_db)):
-    return await auth_service.reset_password(db, body.token, body.password)
-
-
-@router.post("/logout", response_model=MessageResponse)
-async def logout(db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    await auth_service.logout(db, current_user.id)
-    return {"message": "Logged out successfully"}
+    user = await auth_service.sync_user(
+        db, supabase_user_id, email, metadata.get("first_name"), metadata.get("last_name"), metadata.get("role")
+    )
+    logger.info("Profile synced for user %s", user.id)
+    return {"user": {
+        "id": user.id,
+        "first_name": user.first_name,
+        "last_name": user.last_name,
+        "email": user.email,
+        "role": user.role,
+        "created_at": user.created_at.isoformat() if user.created_at else None,
+    }}

@@ -1,11 +1,15 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config.logging_config import logger
 from app.models.availability_slot import AvailabilitySlot
 from app.models.listing import Listing
-from app.utils.errors import ForbiddenError, NotFoundError
+from app.utils.errors import ConflictError, ForbiddenError, NotFoundError
+
+# Every slot is exactly 30 minutes long; the end time is derived, never stored.
+SLOT_DURATION = timedelta(minutes=30)
 
 
 async def get_slots_by_listing(db: AsyncSession, listing_id: int):
@@ -17,11 +21,13 @@ async def get_slots_by_listing(db: AsyncSession, listing_id: int):
 
 async def get_available_slots(db: AsyncSession, listing_id: int):
     result = await db.execute(
-        select(AvailabilitySlot).where(
+        select(AvailabilitySlot)
+        .where(
             AvailabilitySlot.listing_id == listing_id,
             AvailabilitySlot.is_booked == False,
             AvailabilitySlot.start_time >= datetime.now(timezone.utc),
-        ).order_by(AvailabilitySlot.start_time)
+        )
+        .order_by(AvailabilitySlot.start_time)
     )
     return result.scalars().all()
 
@@ -47,6 +53,7 @@ async def create_slot(db: AsyncSession, data: dict, current_user):
     db.add(slot)
     await db.flush()
     await db.refresh(slot)
+    logger.info("Slot %s created for listing %s", slot.id, data["listing_id"])
     return slot
 
 
@@ -55,11 +62,16 @@ async def update_slot(db: AsyncSession, slot_id: int, data: dict, current_user):
     if current_user.role != "ADMIN" and slot.landlord_id != current_user.id:
         raise ForbiddenError("You do not own this slot")
 
+    # Moving a booked slot would desynchronize its bookings' scheduled_at.
+    if slot.is_booked and "start_time" in data:
+        raise ConflictError("Cannot change the time of a booked slot")
+
     for key, value in data.items():
         if value is not None:
             setattr(slot, key, value)
     await db.flush()
     await db.refresh(slot)
+    logger.info("Slot %s updated", slot_id)
     return slot
 
 
@@ -67,5 +79,9 @@ async def delete_slot(db: AsyncSession, slot_id: int, current_user) -> bool:
     slot = await get_slot_by_id(db, slot_id)
     if current_user.role != "ADMIN" and slot.landlord_id != current_user.id:
         raise ForbiddenError("You do not own this slot")
+    # Guard so the CASCADE on bookings.availability_slot_id never silently destroys bookings.
+    if slot.is_booked:
+        raise ConflictError("Cannot delete a booked slot")
     await db.delete(slot)
+    logger.info("Slot %s deleted", slot_id)
     return True

@@ -2,14 +2,15 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config.database import get_db
+from app.config.logging_config import logger
 from app.dependencies.auth import get_current_user, verify_user_ownership
 from app.models.user import User
 from app.schemas.user import (
-    UpdateUserRequest,
     UserDetailResponse,
     UserWithRoleResponse,
 )
 from app.services import user as user_service
+from app.utils import supabase_admin
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
@@ -40,27 +41,6 @@ async def get_user(user_id: int, db: AsyncSession = Depends(get_db), current_use
     }}
 
 
-@router.patch("/{user_id}", response_model=UserDetailResponse)
-async def update_user(
-    user_id: int,
-    body: UpdateUserRequest,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    await user_service.get_user_by_id(db, user_id)
-    verify_user_ownership(user_id, current_user)
-    data = body.model_dump(exclude_none=True)
-    user = await user_service.update_user(db, user_id, data)
-    return {"user": {
-        "id": user.id,
-        "first_name": user.first_name,
-        "last_name": user.last_name,
-        "email": user.email,
-        "role": user.role,
-        "created_at": user.created_at.isoformat() if user.created_at else None,
-    }}
-
-
 @router.delete("/{user_id}", status_code=204)
 async def delete_user(
     user_id: int,
@@ -69,4 +49,7 @@ async def delete_user(
 ):
     await user_service.get_user_by_id(db, user_id)
     verify_user_ownership(user_id, current_user)
-    await user_service.delete_user(db, user_id)
+    supabase_user_id = await user_service.delete_user(db, user_id)
+    logger.info("User %s deleted by user %s", user_id, current_user.id)
+    if supabase_user_id is not None:
+        await supabase_admin.delete_auth_user(supabase_user_id)

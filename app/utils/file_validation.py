@@ -2,6 +2,7 @@ import pathlib
 
 import filetype
 
+from app.config.logging_config import logger
 from app.utils.errors import ValidationError
 
 ALLOWED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
@@ -21,16 +22,20 @@ def validate_file(
     allowed_extensions: set[str],
 ) -> str:
     if not file_bytes:
+        logger.warning("File validation failed for %s: empty file", filename)
         raise ValidationError("Empty file")
 
     if len(file_bytes) > max_size:
+        logger.warning("File validation failed for %s: file too large (%d bytes)", filename, len(file_bytes))
         raise ValidationError(f"File too large (max {max_size // (1024 * 1024)}MB)")
 
     if not filename:
+        logger.warning("File validation failed: missing filename")
         raise ValidationError("Filename is required")
 
     ext = pathlib.Path(filename).suffix.lower()
     if ext not in allowed_extensions:
+        logger.warning("File validation failed for %s: extension not allowed", filename)
         raise ValidationError(f"File extension '{ext}' is not allowed")
 
     detected_type = EXTENSION_MIME_OVERRIDES.get(ext)
@@ -39,14 +44,18 @@ def validate_file(
         detected_type = kind.mime if kind else None
 
     if not detected_type:
+        logger.warning("File validation failed for %s: could not determine file type", filename)
         raise ValidationError("File type could not be determined")
 
     if detected_type not in allowed_mime_types:
+        logger.warning("File validation failed for %s: type %s not allowed", filename, detected_type)
         raise ValidationError(f"File type '{detected_type}' is not allowed")
 
     if declared_content_type and declared_content_type not in allowed_mime_types:
+        logger.warning("File validation failed for %s: declared type %s not allowed", filename, declared_content_type)
         raise ValidationError(f"File type '{declared_content_type}' is not allowed")
 
+    logger.debug("File %s validated as %s", filename, detected_type)
     return detected_type
 
 

@@ -3,6 +3,7 @@ from typing import AsyncGenerator
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
 
+from app.config.logging_config import logger
 from app.config.settings import settings
 
 engine = create_async_engine(
@@ -37,6 +38,7 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
             await session.commit()
         except Exception:
             await session.rollback()
+            logger.warning("Database session rolled back due to unhandled exception", exc_info=True)
             raise
         finally:
             await session.close()

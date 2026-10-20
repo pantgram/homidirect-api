@@ -1,5 +1,6 @@
 # ruff: noqa: E402
 import os
+import uuid
 from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock
 
@@ -7,7 +8,9 @@ from unittest.mock import AsyncMock, MagicMock
 # Environment variables take priority over the .env file in pydantic-settings.
 _TEST_ENV = {
     "DATABASE_URL": "postgresql+asyncpg://test:test@localhost:5432/test",
-    "JWT_SECRET": "test-jwt-secret",
+    "SUPABASE_URL": "https://test-project.supabase.co",
+    "SUPABASE_JWT_SECRET": "",
+    "SUPABASE_SERVICE_ROLE_KEY": "test-service-role-key",
     "NODE_ENV": "test",
     "R2_ACCOUNT_ID": "test-account",
     "R2_ACCESS_KEY_ID": "test-key",
@@ -22,6 +25,7 @@ _TEST_ENV = {
 for _key, _value in _TEST_ENV.items():
     os.environ.setdefault(_key, _value)
 
+import jwt as pyjwt
 import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import event, text
@@ -33,16 +37,22 @@ from sqlalchemy.sql.elements import TextClause
 import app.models  # noqa: F401  (register all models on Base.metadata)
 from app.config.database import Base, get_db
 from app.config.limiter import limiter
-from app.dependencies.auth import create_access_token
 from app.main import app
 from app.models.listing import Listing
 from app.models.user import User
-from app.utils.hash import hash_password
+from app.schemas.listing import MAX_YEAR_BUILT, MIN_YEAR_BUILT
 
 # --- Make the Postgres-flavoured metadata compatible with the SQLite test DB ---
 
 # date_built has a Postgres-only server default (EXTRACT(YEAR FROM CURRENT_DATE)::INTEGER)
 Listing.__table__.c.date_built.server_default = DefaultClause(text("CAST(strftime('%Y', 'now') AS INTEGER)"))
+
+# The date_built CHECK constraint uses Postgres-only EXTRACT(); rewrite its sqltext for SQLite,
+# which also forbids non-deterministic functions (strftime) inside CHECK constraints. The test
+# DB is ephemeral (per-test in-memory), so static bounds matching the schema constants are fine.
+for _constraint in Listing.__table__.constraints:
+    if getattr(_constraint, "name", None) == "date_built":
+        _constraint.sqltext = text(f"date_built >= {MIN_YEAR_BUILT} AND date_built <= {MAX_YEAR_BUILT}")
 
 # Drop Postgres-only full-text-search GIN indexes (to_tsvector expressions)
 for _table in Base.metadata.tables.values():
@@ -52,55 +62,87 @@ for _table in Base.metadata.tables.values():
 
 API = "/api/v1"
 
-VALID_PASSWORD = "Password123"
+# Secret used to sign Supabase-shaped test tokens. The real JWKS verifier in
+# app.dependencies.auth is replaced (see mock_supabase_auth) so no network or
+# Supabase keys are needed in tests.
+TEST_AUTH_SECRET = "test-supabase-auth-secret-0123456789abcdef"
+
+
+# --- Supabase Auth test doubles ---
+
+
+def make_test_token(
+    sub: str, email: str, role: str = "authenticated", user_metadata: dict | None = None
+) -> str:
+    now = datetime.now(timezone.utc)
+    claims = {
+        "sub": sub,
+        "email": email,
+        "role": role,
+        "iat": int(now.timestamp()),
+        "exp": int((now + timedelta(hours=1)).timestamp()),
+    }
+    if user_metadata is not None:
+        claims["user_metadata"] = user_metadata
+    return pyjwt.encode(claims, TEST_AUTH_SECRET, algorithm="HS256")
+
+
+def _fake_verify_supabase_jwt(token: str) -> dict:
+    from app.utils.errors import UnauthorizedError
+
+    try:
+        payload = pyjwt.decode(token, TEST_AUTH_SECRET, algorithms=["HS256"])
+    except pyjwt.PyJWTError:
+        raise UnauthorizedError("Unauthorized")
+    if payload.get("role") != "authenticated":
+        raise UnauthorizedError("Unauthorized")
+    return payload
+
+
+@pytest.fixture(autouse=True)
+def mock_supabase_auth(monkeypatch):
+    monkeypatch.setattr("app.dependencies.auth.verify_supabase_jwt", _fake_verify_supabase_jwt)
 
 
 # --- Helpers (plain functions, usable from any test module) ---
 
 
-async def register_user(
+async def sync_user(
     client: AsyncClient,
     email: str = "user@example.com",
-    password: str = VALID_PASSWORD,
     role: str = "TENANT",
     first_name: str = "Test",
     last_name: str = "User",
+    sub: str | None = None,
 ) -> dict:
-    response = await client.post(
-        f"{API}/auth/register",
-        json={
-            "firstName": first_name,
-            "lastName": last_name,
-            "email": email,
-            "password": password,
-            "role": role,
-        },
+    """Create the profile row for a Supabase-authenticated user (POST /auth/sync)
+    and return {"user", "token", "sub", "email"}.
+
+    Profile data travels in the token's user_metadata with snake_case keys,
+    exactly like real Supabase access tokens — the endpoint has no request body.
+    """
+    sub = sub or str(uuid.uuid4())
+    token = make_test_token(
+        sub, email, user_metadata={"first_name": first_name, "last_name": last_name, "role": role}
     )
+    response = await client.post(f"{API}/auth/sync", headers={"Authorization": f"Bearer {token}"})
     assert response.status_code == 200, response.text
-    return response.json()
-
-
-async def login_user(client: AsyncClient, email: str, password: str) -> dict:
-    response = await client.post(f"{API}/auth/login", json={"email": email, "password": password})
-    assert response.status_code == 200, response.text
-    return response.json()
+    return {"user": response.json()["user"], "token": token, "sub": sub, "email": email}
 
 
 async def create_db_user(
     session,
     email: str = "admin@example.com",
-    password: str = VALID_PASSWORD,
     role: str = "ADMIN",
     status: str = "ACTIVE",
 ) -> User:
     user = User(
         email=email,
-        password=hash_password(password),
+        supabase_user_id=uuid.uuid4(),
         first_name="Db",
         last_name="User",
         role=role,
         status=status,
-        auth_provider="EMAIL",
     )
     session.add(user)
     await session.commit()
@@ -108,15 +150,13 @@ async def create_db_user(
     return user
 
 
-def auth_headers_for(user: User, token_version: int = 0) -> dict:
-    token = create_access_token(
-        {"id": user.id, "email": user.email, "role": user.role, "token_version": token_version}
-    )
+def auth_headers_for(user: User) -> dict:
+    token = make_test_token(str(user.supabase_user_id), user.email)
     return {"Authorization": f"Bearer {token}"}
 
 
-def headers_from_tokens(tokens: dict) -> dict:
-    return {"Authorization": f"Bearer {tokens['accessToken']}"}
+def headers_from_tokens(sync_data: dict) -> dict:
+    return {"Authorization": f"Bearer {sync_data['token']}"}
 
 
 def listing_payload(**overrides) -> dict:
@@ -151,10 +191,9 @@ async def create_listing(client: AsyncClient, headers: dict, **overrides) -> dic
     return response.json()["listing"]
 
 
-def slot_payload(listing_id: int, hours_from_now: float = 24, duration_hours: float = 1) -> dict:
+def slot_payload(listing_id: int, hours_from_now: float = 24) -> dict:
     start = datetime.now(timezone.utc) + timedelta(hours=hours_from_now)
-    end = start + timedelta(hours=duration_hours)
-    return {"listingId": listing_id, "startTime": start.isoformat(), "endTime": end.isoformat()}
+    return {"listingId": listing_id, "startTime": start.isoformat()}
 
 
 # --- Fixtures ---
@@ -170,15 +209,15 @@ def _disable_rate_limiting():
 
 @pytest.fixture(autouse=True)
 def mock_external_services(monkeypatch):
-    """Replace outbound e-mail and R2 storage calls with mocks."""
+    """Replace outbound e-mail, R2 storage and Supabase admin calls with mocks."""
     from app.api.v1 import listings as listings_api
-    from app.services import auth as auth_service
     from app.services import booking as booking_service
     from app.services import verification as verification_service
     from app.utils import storage as storage_utils
+    from app.utils import supabase_admin
 
     mocks = {
-        "password_reset": AsyncMock(),
+        "delete_auth_user": AsyncMock(return_value=True),
         "contact_owner": AsyncMock(),
         "booking_created": AsyncMock(),
         "booking_confirmed": AsyncMock(),
@@ -189,7 +228,7 @@ def mock_external_services(monkeypatch):
         "copy_in_r2": MagicMock(side_effect=lambda old, new: f"http://localhost:9000/test-bucket/{new}"),
     }
 
-    monkeypatch.setattr(auth_service, "send_password_reset_email", mocks["password_reset"])
+    monkeypatch.setattr(supabase_admin, "delete_auth_user", mocks["delete_auth_user"])
     monkeypatch.setattr(listings_api, "send_contact_owner_email", mocks["contact_owner"])
     monkeypatch.setattr(booking_service, "send_booking_created_email", mocks["booking_created"])
     monkeypatch.setattr(booking_service, "send_booking_confirmed_email", mocks["booking_confirmed"])
@@ -213,9 +252,7 @@ async def db_engine():
 
     @event.listens_for(engine.sync_engine, "connect")
     def _configure_sqlite(dbapi_connection, _):
-        dbapi_connection.create_function(
-            "NOW", 0, lambda: datetime.now(timezone.utc).isoformat(sep=" ")
-        )
+        dbapi_connection.create_function("NOW", 0, lambda: datetime.now(timezone.utc).isoformat(sep=" "))
         cursor = dbapi_connection.cursor()
         cursor.execute("PRAGMA foreign_keys=ON")
         cursor.close()
@@ -271,24 +308,22 @@ async def client(session_factory):
 
 @pytest.fixture
 async def landlord(client):
-    data = await register_user(client, email="landlord@example.com", role="LANDLORD")
-    return data
+    return await sync_user(client, email="landlord@example.com", role="LANDLORD")
 
 
 @pytest.fixture
 async def landlord_headers(landlord):
-    return headers_from_tokens(landlord["token"])
+    return headers_from_tokens(landlord)
 
 
 @pytest.fixture
 async def tenant(client):
-    data = await register_user(client, email="tenant@example.com", role="TENANT")
-    return data
+    return await sync_user(client, email="tenant@example.com", role="TENANT")
 
 
 @pytest.fixture
 async def tenant_headers(tenant):
-    return headers_from_tokens(tenant["token"])
+    return headers_from_tokens(tenant)
 
 
 @pytest.fixture

@@ -1,4 +1,6 @@
-from app.tests.conftest import API, create_listing, listing_payload
+from datetime import date
+
+from app.tests.conftest import API, create_listing, headers_from_tokens, listing_payload, sync_user
 
 
 class TestCreateListing:
@@ -49,6 +51,47 @@ class TestCreateListing:
         assert response.json()["error"] == "Internal Server Error"
 
 
+class TestDateBuiltValidation:
+    async def test_create_rejects_year_below_minimum(self, client, landlord_headers):
+        response = await client.post(f"{API}/listings/", json=listing_payload(dateBuilt=1700), headers=landlord_headers)
+
+        assert response.status_code == 422
+
+    async def test_create_rejects_future_year(self, client, landlord_headers):
+        response = await client.post(f"{API}/listings/", json=listing_payload(dateBuilt=3000), headers=landlord_headers)
+
+        assert response.status_code == 422
+
+    async def test_create_accepts_current_year(self, client, landlord_headers):
+        body = await create_listing(client, landlord_headers, dateBuilt=date.today().year)
+
+        assert body["dateBuilt"] == date.today().year
+
+    async def test_update_rejects_invalid_year(self, client, listing, landlord_headers):
+        response = await client.patch(
+            f"{API}/listings/{listing['id']}", json={"dateBuilt": 1700}, headers=landlord_headers
+        )
+
+        assert response.status_code == 422
+
+    async def test_search_rejects_invalid_min_date_built(self, client):
+        response = await client.get(f"{API}/listings/search", params={"minDateBuilt": 1700})
+
+        assert response.status_code == 422
+
+    async def test_search_filters_by_date_built_range(self, client, landlord_headers):
+        old = await create_listing(client, landlord_headers, dateBuilt=1980)
+        new = await create_listing(client, landlord_headers, dateBuilt=2020)
+
+        recent = await client.get(f"{API}/listings/search", params={"minDateBuilt": 2000})
+
+        assert [item["id"] for item in recent.json()["data"]] == [new["id"]]
+
+        old_range = await client.get(f"{API}/listings/search", params={"minDateBuilt": 1900, "maxDateBuilt": 1990})
+
+        assert [item["id"] for item in old_range.json()["data"]] == [old["id"]]
+
+
 class TestGetListing:
     async def test_get_listing_by_id(self, client, listing):
         response = await client.get(f"{API}/listings/{listing['id']}")
@@ -87,17 +130,8 @@ class TestUpdateListing:
         assert body["bedrooms"] == 3
 
     async def test_non_owner_cannot_update(self, client, listing):
-        other = await client.post(
-            f"{API}/auth/register",
-            json={
-                "firstName": "Other",
-                "lastName": "Landlord",
-                "email": "other-landlord@example.com",
-                "password": "Password123",
-                "role": "LANDLORD",
-            },
-        )
-        headers = {"Authorization": f"Bearer {other.json()['token']['accessToken']}"}
+        other = await sync_user(client, email="other-landlord@example.com", role="LANDLORD")
+        headers = headers_from_tokens(other)
 
         response = await client.patch(f"{API}/listings/{listing['id']}", json={"price": 1.0}, headers=headers)
 
@@ -141,17 +175,8 @@ class TestDeleteListing:
 class TestMyListings:
     async def test_returns_only_own_listings(self, client, landlord_headers):
         first = await create_listing(client, landlord_headers, titleEl="Mine")
-        other = await client.post(
-            f"{API}/auth/register",
-            json={
-                "firstName": "Second",
-                "lastName": "Landlord",
-                "email": "second-landlord@example.com",
-                "password": "Password123",
-                "role": "LANDLORD",
-            },
-        )
-        other_headers = {"Authorization": f"Bearer {other.json()['token']['accessToken']}"}
+        other = await sync_user(client, email="second-landlord@example.com", role="LANDLORD")
+        other_headers = headers_from_tokens(other)
         await create_listing(client, other_headers, titleEl="Theirs")
 
         response = await client.get(f"{API}/listings/my-listings", headers=landlord_headers)
@@ -235,14 +260,6 @@ class TestSearch:
         assert response.status_code == 200
         assert response.json()["pagination"]["total"] == 1
 
-    async def test_search_available_filter(self, client, landlord_headers):
-        available = await create_listing(client, landlord_headers)
-        await create_listing(client, landlord_headers, available=False)
-
-        response = await client.get(f"{API}/listings/search", params={"available": "true"})
-
-        assert [item["id"] for item in response.json()["data"]] == [available["id"]]
-
     async def test_search_requires_no_authentication(self, client, listing):
         response = await client.get(f"{API}/listings/search")
 
@@ -253,20 +270,19 @@ class TestSearch:
 class TestStatsAndCities:
     async def test_stats(self, client, landlord_headers):
         await create_listing(client, landlord_headers)
-        await create_listing(client, landlord_headers, available=False)
+        await create_listing(client, landlord_headers)
 
         response = await client.get(f"{API}/listings/stats")
 
         assert response.status_code == 200
         body = response.json()
-        assert body["activeListingsCount"] == 1
+        assert body["activeListingsCount"] == 2
         assert body["propertyOwnersCount"] == 1
 
     async def test_cities_distinct_and_sorted(self, client, landlord_headers):
         await create_listing(client, landlord_headers, city="Thessaloniki")
         await create_listing(client, landlord_headers, city="Athens")
         await create_listing(client, landlord_headers, city="Athens")
-        await create_listing(client, landlord_headers, city="Patras", available=False)
 
         response = await client.get(f"{API}/listings/cities")
 

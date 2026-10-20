@@ -1,13 +1,18 @@
 from pydantic import computed_field
 from pydantic_settings import BaseSettings
-
+import urllib.parse
 
 class Settings(BaseSettings):
     port: int = 5000
     database_url: str
-    jwt_secret: str
     node_env: str = "development"
     frontend_url: str = "http://localhost:8080"
+    log_file: str = "/home/pantgram/Documents/logs/homidirect_api.log"
+    log_level: str = "INFO"
+
+    supabase_url: str
+    supabase_jwt_secret: str = ""
+    supabase_service_role_key: str = ""
 
     r2_account_id: str
     r2_access_key_id: str
@@ -20,10 +25,6 @@ class Settings(BaseSettings):
     smtp_user: str = ""
     smtp_pass: str = ""
     email_from: str = "HomiDirect <donotreply@homidirect.com>"
-
-    google_client_id: str = ""
-    google_client_secret: str = ""
-    google_callback_url: str = "http://localhost:5000/api/v1/auth/google/callback"
 
     geoapify_api_key: str = ""
     geoapify_request_timeout: float = 5.0
@@ -49,7 +50,7 @@ class Settings(BaseSettings):
     @property
     def async_database_url(self) -> str:
         url = self.database_url
-        import urllib.parse
+        
         parsed = urllib.parse.urlparse(url)
         query = urllib.parse.parse_qs(parsed.query)
         unsupported = {"sslmode", "channel_binding", "ssl", "sslrootcert", "sslcert", "sslkey"}
@@ -58,7 +59,7 @@ class Settings(BaseSettings):
         url = urllib.parse.urlunparse(parsed._replace(query=new_query))
         return url
 
-    model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
+    model_config = {"env_file": "../.env", "env_file_encoding": "utf-8", "extra": "ignore"}
 
 
 settings = Settings()

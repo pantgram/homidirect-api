@@ -3,11 +3,14 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config.database import get_db
+from app.config.logging_config import logger
 from app.dependencies.auth import get_current_user, get_optional_user, require_role, verify_listing_ownership
 from app.models.user import User
 from app.models.user import User as UserModel
 from app.schemas.common import MessageResponse
 from app.schemas.listing import (
+    MAX_YEAR_BUILT,
+    MIN_YEAR_BUILT,
     ContactOwnerRequest,
     CreateListingRequest,
     ListingDetailResponse,
@@ -51,13 +54,10 @@ async def search_listings(
     elevator: bool | None = None,
     parking_space: bool | None = Query(default=None, alias="parkingSpace"),
     furnished: bool | None = None,
-    zone_type: str | None = Query(default=None, alias="zoneType"),
-    listing_status: str | None = Query(default=None, alias="listingStatus"),
     date_available_from: str | None = Query(default=None, alias="dateAvailableFrom"),
     date_available_to: str | None = Query(default=None, alias="dateAvailableTo"),
-    min_date_built: int | None = Query(default=None, alias="minDateBuilt"),
-    max_date_built: int | None = Query(default=None, alias="maxDateBuilt"),
-    available: bool | None = None,
+    min_date_built: int | None = Query(default=None, alias="minDateBuilt", ge=MIN_YEAR_BUILT, le=MAX_YEAR_BUILT),
+    max_date_built: int | None = Query(default=None, alias="maxDateBuilt", ge=MIN_YEAR_BUILT, le=MAX_YEAR_BUILT),
     is_featured: bool | None = Query(default=None, alias="isFeatured"),
     verification_status: str | None = Query(default=None, alias="verificationStatus"),
     sort_by: str = Query(default="featured", alias="sortBy"),
@@ -111,6 +111,7 @@ async def create_listing(
 
     data = body.model_dump(exclude_none=True)
     listing = await listing_service.create_listing(db, data)
+    logger.info("Listing %s created by user %s", listing.id, current_user.id)
     return {"listing": listing_to_dict(listing)}
 
 @router.patch("/{listing_id}", response_model=ListingDetailResponse)
@@ -123,6 +124,7 @@ async def update_listing(
     await verify_listing_ownership(listing_id, db, current_user)
     data = body.model_dump(exclude_none=True)
     listing = await listing_service.update_listing(db, listing_id, data)
+    logger.info("Listing %s updated by user %s", listing_id, current_user.id)
     return {"listing": listing_to_dict(listing)}
 
 
@@ -134,6 +136,7 @@ async def delete_listing(
 ):
     await verify_listing_ownership(listing_id, db, current_user)
     await listing_service.delete_listing(db, listing_id)
+    logger.info("Listing %s deleted by user %s", listing_id, current_user.id)
 
 
 @router.post("/{listing_id}/contact", response_model=MessageResponse)
@@ -156,4 +159,5 @@ async def contact_owner(
             body.phone or "",
             body.message,
         )
+    logger.info("Contact request for listing %s queued for owner by user %s", listing_id, current_user.id)
     return {"message": "Contact email sent"}

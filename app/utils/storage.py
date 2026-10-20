@@ -1,6 +1,7 @@
 import boto3
 from botocore.config import Config as BotoConfig
 
+from app.config.logging_config import logger
 from app.config.settings import settings
 
 _s3_client = boto3.client(
@@ -22,11 +23,13 @@ def upload_to_r2(key: str, body: bytes, content_type: str) -> str:
         Body=body,
         ContentType=content_type,
     )
+    logger.info("Uploaded object %s to bucket %s", key, _BUCKET)
     return f"{_PUBLIC_URL}/{key}"
 
 
 def delete_from_r2(key: str) -> None:
     _s3_client.delete_object(Bucket=_BUCKET, Key=key)
+    logger.info("Deleted object %s from bucket %s", key, _BUCKET)
 
 
 def copy_in_r2(source_key: str, dest_key: str) -> str:
@@ -35,6 +38,7 @@ def copy_in_r2(source_key: str, dest_key: str) -> str:
         CopySource={"Bucket": _BUCKET, "Key": source_key},
         Key=dest_key,
     )
+    logger.info("Copied object %s to %s in bucket %s", source_key, dest_key, _BUCKET)
     return f"{_PUBLIC_URL}/{dest_key}"
 
 

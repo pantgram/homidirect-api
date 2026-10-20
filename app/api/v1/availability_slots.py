@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config.database import get_db
+from app.config.logging_config import logger
 from app.dependencies.auth import get_current_user, get_optional_user, require_role
 from app.models.user import User
 from app.schemas.availability_slot import (
@@ -12,6 +13,7 @@ from app.schemas.availability_slot import (
 )
 from app.services import availability_slot as slot_service
 from app.services import listing as listing_service
+from app.services.availability_slot import SLOT_DURATION
 
 router = APIRouter(prefix="/availability-slots", tags=["Availability Slots"])
 
@@ -22,7 +24,7 @@ def _format_slot(s):
         "listing_id": s.listing_id,
         "landlord_id": s.landlord_id,
         "start_time": s.start_time.isoformat(),
-        "end_time": s.end_time.isoformat(),
+        "end_time": (s.start_time + SLOT_DURATION).isoformat(),
         "is_booked": s.is_booked,
         "created_at": s.created_at.isoformat(),
     }
@@ -57,8 +59,9 @@ async def create_slot(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_role("LANDLORD", "BOTH", "ADMIN")),
 ):
-    data = {"listing_id": body.listing_id, "start_time": body.start_time, "end_time": body.end_time}
+    data = {"listing_id": body.listing_id, "start_time": body.start_time}
     slot = await slot_service.create_slot(db, data, current_user)
+    logger.info("Slot %s created for listing %s by user %s", slot.id, body.listing_id, current_user.id)
     return {"slot": _format_slot(slot)}
 
 
@@ -71,6 +74,7 @@ async def update_slot(
 ):
     data = body.model_dump(exclude_none=True)
     slot = await slot_service.update_slot(db, slot_id, data, current_user)
+    logger.info("Slot %s updated by user %s", slot_id, current_user.id)
     return {"slot": _format_slot(slot)}
 
 
@@ -81,3 +85,4 @@ async def delete_slot(
     current_user: User = Depends(get_current_user),
 ):
     await slot_service.delete_slot(db, slot_id, current_user)
+    logger.info("Slot %s deleted by user %s", slot_id, current_user.id)

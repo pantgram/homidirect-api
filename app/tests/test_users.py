@@ -3,7 +3,7 @@ from app.tests.conftest import API, headers_from_tokens
 
 class TestMe:
     async def test_me_returns_profile(self, client, tenant):
-        response = await client.get(f"{API}/users/me", headers=headers_from_tokens(tenant["token"]))
+        response = await client.get(f"{API}/users/me", headers=headers_from_tokens(tenant))
 
         assert response.status_code == 200
         body = response.json()
@@ -32,66 +32,22 @@ class TestGetUser:
         assert response.status_code == 401
 
 
-class TestUpdateUser:
-    async def test_update_own_profile(self, client, tenant, tenant_headers):
-        response = await client.patch(
-            f"{API}/users/{tenant['user']['id']}",
-            json={"firstName": "Updated", "lastName": "Name"},
-            headers=tenant_headers,
-        )
-
-        assert response.status_code == 200
-        body = response.json()["user"]
-        assert body["firstName"] == "Updated"
-        assert body["lastName"] == "Name"
-        assert body["email"] == "tenant@example.com"
-
-    async def test_cannot_update_other_user(self, client, tenant, landlord, tenant_headers):
-        response = await client.patch(
-            f"{API}/users/{landlord['user']['id']}",
-            json={"firstName": "Hacker"},
-            headers=tenant_headers,
-        )
-
-        assert response.status_code == 404
-        assert response.json()["message"] == "User not found"
-
-    async def test_update_email_conflict(self, client, tenant, landlord, tenant_headers):
-        response = await client.patch(
-            f"{API}/users/{tenant['user']['id']}",
-            json={"email": landlord["user"]["email"]},
-            headers=tenant_headers,
-        )
-
-        assert response.status_code == 409
-        assert response.json()["message"] == "Email already exists"
-
-    async def test_update_unknown_user(self, client, tenant_headers):
-        response = await client.patch(
-            f"{API}/users/999999", json={"firstName": "Ghost"}, headers=tenant_headers
-        )
-
-        assert response.status_code == 404
-
-    async def test_update_invalid_role(self, client, tenant, tenant_headers):
-        response = await client.patch(
-            f"{API}/users/{tenant['user']['id']}", json={"role": "ADMIN"}, headers=tenant_headers
-        )
-
-        assert response.status_code == 422
-
-
 class TestDeleteUser:
     async def test_delete_own_account(self, client, tenant, tenant_headers):
         response = await client.delete(f"{API}/users/{tenant['user']['id']}", headers=tenant_headers)
 
         assert response.status_code == 204
 
-    async def test_login_after_account_deletion(self, client, tenant, tenant_headers):
-        await client.delete(f"{API}/users/{tenant['user']['id']}", headers=tenant_headers)
-        login = await client.post(f"{API}/auth/login", json={"email": "tenant@example.com", "password": "Password123"})
+    async def test_supabase_auth_user_deleted_after_account_deletion(
+        self, client, tenant, tenant_headers, mock_external_services
+    ):
+        response = await client.delete(f"{API}/users/{tenant['user']['id']}", headers=tenant_headers)
 
-        assert login.status_code == 401
+        assert response.status_code == 204
+        mock_external_services["delete_auth_user"].assert_awaited_once()
+
+        me = await client.get(f"{API}/users/me", headers=tenant_headers)
+        assert me.status_code == 401
 
     async def test_cannot_delete_other_user(self, client, landlord, tenant_headers):
         response = await client.delete(

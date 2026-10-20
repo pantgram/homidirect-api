@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from sqlalchemy import and_, asc, desc, func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config.logging_config import logger
 from app.models.listing import Listing
 from app.services.listing_image import delete_images_by_listing_id
 from app.utils.errors import NotFoundError
@@ -13,7 +14,7 @@ async def get_stats(db: AsyncSession):
     r1 = await db.execute(
         select(func.count())
         .select_from(Listing)
-        .where(Listing.available == True, Listing.publication_status == "ACTIVE")
+        .where(Listing.publication_status == "ACTIVE")
     )
     r2 = await db.execute(
         select(func.count(func.distinct(Listing.landlord_id)))
@@ -79,7 +80,7 @@ async def delete_listing(db: AsyncSession, listing_id: int) -> bool:
     try:
         await delete_images_by_listing_id(db, listing_id)
     except Exception:
-        pass
+        logger.warning("Failed to delete images for listing %s", listing_id, exc_info=True)
     await db.delete(listing)
     return True
 
@@ -145,12 +146,6 @@ async def search_listings(db: AsyncSession, params: dict, is_authenticated: bool
         conditions.append(Listing.parking_space == params["parking_space"])
     if params.get("furnished") is not None:
         conditions.append(Listing.furnished == params["furnished"])
-    if params.get("zone_type"):
-        conditions.append(Listing.zone_type == params["zone_type"])
-    if params.get("listing_status"):
-        conditions.append(Listing.listing_status == params["listing_status"])
-    if params.get("available") is not None:
-        conditions.append(Listing.available == params["available"])
     if params.get("is_featured") is not None:
         conditions.append(Listing.is_featured == params["is_featured"])
     if params.get("verification_status"):
@@ -217,7 +212,7 @@ async def search_listings(db: AsyncSession, params: dict, is_authenticated: bool
 async def get_distinct_cities(db: AsyncSession):
     result = await db.execute(
         select(Listing.city).distinct().where(
-            Listing.available == True, Listing.publication_status == "ACTIVE"
+            Listing.publication_status == "ACTIVE"
         ).order_by(Listing.city)
     )
     return [r[0] for r in result.all()]

@@ -2,6 +2,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config.database import get_db
+from app.config.logging_config import logger
 from app.dependencies.auth import get_current_user, verify_booking_ownership, verify_listing_ownership
 from app.models.user import User
 from app.schemas.booking import BookingDetailResponse, BookingsListResponse, CreateBookingRequest, UpdateBookingRequest
@@ -53,6 +54,7 @@ async def create_booking(
 ):
     data = body.model_dump(exclude_none=True)
     b = await booking_service.create_booking(db, data, current_user, background_tasks)
+    logger.info("Booking %s created for listing %s by user %s", b.id, b.listing_id, current_user.id)
     return {"booking": _format_booking(b)}
 
 
@@ -67,6 +69,7 @@ async def update_booking(
     await verify_booking_ownership(booking_id, db, current_user)
     data = body.model_dump(exclude_none=True)
     b = await booking_service.update_booking(db, booking_id, data, current_user, background_tasks)
+    logger.info("Booking %s updated by user %s", booking_id, current_user.id)
     return {"booking": _format_booking(b)}
 
 
@@ -90,3 +93,4 @@ async def delete_booking(
 ):
     await verify_booking_ownership(booking_id, db, current_user)
     await booking_service.delete_booking(db, booking_id, background_tasks)
+    logger.info("Booking %s deleted by user %s", booking_id, current_user.id)

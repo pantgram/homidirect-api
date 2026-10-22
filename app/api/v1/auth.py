@@ -1,12 +1,13 @@
 import uuid
 
 from fastapi import APIRouter, Depends, Request
+from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config.database import get_db
 from app.config.limiter import limiter
 from app.config.logging_config import logger
-from app.dependencies import auth as auth_deps
+from app.dependencies import auth
 from app.schemas.user import UserDetailResponse
 from app.services import auth as auth_service
 from app.utils.errors import UnauthorizedError
@@ -19,7 +20,7 @@ router = APIRouter(prefix="", tags=["Auth"])
 async def sync_profile(
     request: Request,
     db: AsyncSession = Depends(get_db),
-    credentials=Depends(auth_deps.security_scheme),
+    credentials: HTTPAuthorizationCredentials = Depends(auth.security_scheme)
 ):
     """Create or update the app profile row for the authenticated Supabase user.
 
@@ -33,7 +34,7 @@ async def sync_profile(
     """
     if credentials is None:
         raise UnauthorizedError("Unauthorized")
-    claims = auth_deps.verify_supabase_jwt(credentials.credentials)
+    claims = auth.verify_supabase_jwt(credentials.credentials)
     sub = claims.get("sub")
     email = claims.get("email")
     metadata = claims.get("user_metadata", {})

@@ -71,9 +71,7 @@ TEST_AUTH_SECRET = "test-supabase-auth-secret-0123456789abcdef"
 # --- Supabase Auth test doubles ---
 
 
-def make_test_token(
-    sub: str, email: str, role: str = "authenticated", user_metadata: dict | None = None
-) -> str:
+def make_test_token(sub: str, email: str, role: str = "authenticated", user_metadata: dict | None = None) -> str:
     now = datetime.now(timezone.utc)
     claims = {
         "sub": sub,
@@ -122,9 +120,7 @@ async def sync_user(
     exactly like real Supabase access tokens — the endpoint has no request body.
     """
     sub = sub or str(uuid.uuid4())
-    token = make_test_token(
-        sub, email, user_metadata={"first_name": first_name, "last_name": last_name, "role": role}
-    )
+    token = make_test_token(sub, email, user_metadata={"first_name": first_name, "last_name": last_name, "role": role})
     response = await client.post(f"{API}/auth/sync", headers={"Authorization": f"Bearer {token}"})
     assert response.status_code == 200, response.text
     return {"user": response.json()["user"], "token": token, "sub": sub, "email": email}
@@ -191,9 +187,11 @@ async def create_listing(client: AsyncClient, headers: dict, **overrides) -> dic
     return response.json()["listing"]
 
 
-def slot_payload(listing_id: int, hours_from_now: float = 24) -> dict:
+def slot_payload(listing_id: int, hours_from_now: float = 24, type: str = "REMOTE", **extra) -> dict:
     start = datetime.now(timezone.utc) + timedelta(hours=hours_from_now)
-    return {"listingId": listing_id, "startTime": start.isoformat()}
+    payload = {"listingId": listing_id, "startTime": start.isoformat(), "type": type}
+    payload.update(extra)
+    return payload
 
 
 # --- Fixtures ---
@@ -211,7 +209,7 @@ def _disable_rate_limiting():
 def mock_external_services(monkeypatch):
     """Replace outbound e-mail, R2 storage and Supabase admin calls with mocks."""
     from app.api.v1 import listings as listings_api
-    from app.services import booking as booking_service
+    from app.services import time_slot as time_slot_service
     from app.services import verification as verification_service
     from app.utils import storage as storage_utils
     from app.utils import supabase_admin
@@ -230,10 +228,10 @@ def mock_external_services(monkeypatch):
 
     monkeypatch.setattr(supabase_admin, "delete_auth_user", mocks["delete_auth_user"])
     monkeypatch.setattr(listings_api, "send_contact_owner_email", mocks["contact_owner"])
-    monkeypatch.setattr(booking_service, "send_booking_created_email", mocks["booking_created"])
-    monkeypatch.setattr(booking_service, "send_booking_confirmed_email", mocks["booking_confirmed"])
-    monkeypatch.setattr(booking_service, "send_booking_declined_email", mocks["booking_declined"])
-    monkeypatch.setattr(booking_service, "send_booking_cancelled_email", mocks["booking_cancelled"])
+    monkeypatch.setattr(time_slot_service, "send_booking_created_email", mocks["booking_created"])
+    monkeypatch.setattr(time_slot_service, "send_booking_confirmed_email", mocks["booking_confirmed"])
+    monkeypatch.setattr(time_slot_service, "send_booking_declined_email", mocks["booking_declined"])
+    monkeypatch.setattr(time_slot_service, "send_booking_cancelled_email", mocks["booking_cancelled"])
     monkeypatch.setattr(verification_service, "upload_to_r2", mocks["upload_to_r2"])
     monkeypatch.setattr(verification_service, "delete_from_r2", mocks["delete_from_r2"])
     monkeypatch.setattr(storage_utils, "upload_to_r2", mocks["upload_to_r2"])

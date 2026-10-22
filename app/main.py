@@ -38,8 +38,7 @@ openapi_tags = [
     {"name": "Verification", "description": "Listing verification documents, status, and history"},
     {"name": "Admin Verification", "description": "Admin review of listing verifications"},
     {"name": "Favorites", "description": "Saved listings"},
-    {"name": "Bookings", "description": "Listing visit bookings"},
-    {"name": "Availability Slots", "description": "Bookable time slots for listings"},
+    {"name": "Time Slots", "description": "Bookable time windows and visit bookings"},
     {"name": "Geocoding", "description": "Address search, autocomplete, and reverse geocoding"},
 ]
 

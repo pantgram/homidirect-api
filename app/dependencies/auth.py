@@ -6,6 +6,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jwt import PyJWKClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
 
 from app.config.database import get_db
 from app.config.logging_config import logger
@@ -124,6 +125,7 @@ def require_role(*roles: str):
         if current_user.role not in roles:
             raise ForbiddenError("Insufficient permissions")
         return current_user
+
     return _check
 
 
@@ -154,14 +156,22 @@ async def verify_listing_ownership(listing_id: int, db: AsyncSession, current_us
     return current_user
 
 
-async def verify_booking_ownership(booking_id: int, db: AsyncSession, current_user: User) -> User:
-    from app.models.booking import Booking
-    result = await db.execute(
-        select(Booking).where(Booking.id == booking_id)
-    )
-    booking = result.scalar_one_or_none()
-    if current_user.role == "ADMIN":
+async def verify_time_slot_ownership(slot_id: int, db: AsyncSession, current_user: User | None) -> User:
+    """Verify the viewer may act on a time slot: the listing's landlord, the claiming
+    candidate, or an admin. Accepts an anonymous viewer (None) so public routes can
+    reuse the check; outsiders get a 404, never a 403."""
+    from app.models.time_slot import TimeSlot
+
+    result = await db.execute(select(TimeSlot).options(joinedload(TimeSlot.listing)).where(TimeSlot.id == slot_id))
+    slot = result.scalar_one_or_none()
+    if current_user is not None and current_user.role == "ADMIN":
         return current_user
-    if (not booking) or (booking.candidate_id != current_user.id and booking.landlord_id != current_user.id):
-        raise NotFoundError("Booking not found")
+    # An OPEN row has no candidate; it still "belongs" to the listing's landlord so the
+    # owner can act on it.
+    if (
+        (not slot)
+        or current_user is None
+        or (slot.candidate_id != current_user.id and slot.listing.landlord_id != current_user.id)
+    ):
+        raise NotFoundError("Time slot not found")
     return current_user

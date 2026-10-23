@@ -39,7 +39,6 @@ openapi_tags = [
     {"name": "Admin Verification", "description": "Admin review of listing verifications"},
     {"name": "Favorites", "description": "Saved listings"},
     {"name": "Time Slots", "description": "Bookable time windows and visit bookings"},
-    {"name": "Geocoding", "description": "Address search, autocomplete, and reverse geocoding"},
 ]
 
 app = FastAPI(title="HomiDirect API", version="1.0.0", lifespan=lifespan, openapi_tags=openapi_tags)

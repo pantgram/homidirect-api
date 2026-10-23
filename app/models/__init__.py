@@ -1,4 +1,3 @@
-from app.models.geocoding_cache import GeocodingCache
 from app.models.interested_listing import InterestedListing
 from app.models.listing import Listing
 from app.models.listing_image import ListingImage
@@ -15,5 +14,4 @@ __all__ = [
     "InterestedListing",
     "VerificationDocument",
     "VerificationHistory",
-    "GeocodingCache",
 ]

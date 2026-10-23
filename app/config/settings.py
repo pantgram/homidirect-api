@@ -26,9 +26,6 @@ class Settings(BaseSettings):
     smtp_pass: str = ""
     email_from: str = "HomiDirect <donotreply@homidirect.com>"
 
-    geoapify_api_key: str = ""
-    geoapify_request_timeout: float = 5.0
-
     max_file_size: int = 5 * 1024 * 1024
     max_document_size: int = 10 * 1024 * 1024
     max_images_per_listing: int = 10

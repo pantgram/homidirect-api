@@ -3,7 +3,6 @@ from fastapi import APIRouter
 from . import (
     auth,
     favorites,
-    geocoding,
     health,
     listing_images,
     listings,
@@ -21,6 +20,5 @@ router.include_router(listing_images.router)
 router.include_router(time_slots.router)
 router.include_router(verification.router)
 router.include_router(verification.admin_router)
-router.include_router(geocoding.router)
 router.include_router(favorites.router)
 router.include_router(health.router)

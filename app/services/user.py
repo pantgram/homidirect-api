@@ -22,7 +22,7 @@ async def delete_user(db: AsyncSession, user_id: int):
     user = result.scalar_one_or_none()
     if not user:
         raise NotFoundError("User not found")
-    supabase_user_id = user.supabase_user_id
+    clerk_user_id = user.clerk_user_id
     await db.delete(user)
     logger.info("User %s deleted", user_id)
-    return supabase_user_id
+    return clerk_user_id

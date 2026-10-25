@@ -10,7 +10,7 @@ from app.schemas.user import (
     UserWithRoleResponse,
 )
 from app.services import user as user_service
-from app.utils import supabase_admin
+from app.utils import clerk_admin
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
@@ -49,7 +49,7 @@ async def delete_user(
 ):
     await user_service.get_user_by_id(db, user_id)
     verify_user_ownership(user_id, current_user)
-    supabase_user_id = await user_service.delete_user(db, user_id)
+    clerk_user_id = await user_service.delete_user(db, user_id)
     logger.info("User %s deleted by user %s", user_id, current_user.id)
-    if supabase_user_id is not None:
-        await supabase_admin.delete_auth_user(supabase_user_id)
+    if clerk_user_id is not None:
+        await clerk_admin.delete_auth_user(clerk_user_id)

@@ -31,8 +31,9 @@ async def lifespan(app: FastAPI):
 
 openapi_tags = [
     {"name": "Health", "description": "Service health checks"},
-    {"name": "Auth", "description": "Supabase Auth profile sync"},
+    {"name": "Auth", "description": "Clerk profile sync"},
     {"name": "Users", "description": "User profile management"},
+    {"name": "Webhooks", "description": "Clerk user lifecycle events"},
     {"name": "Listings", "description": "Property listing CRUD, search, and contact"},
     {"name": "Listing Images", "description": "Image uploads attached to existing listings"},
     {"name": "Verification", "description": "Listing verification documents, status, and history"},

@@ -1,9 +1,6 @@
-import uuid
-
 from fastapi import APIRouter, Depends, Request
-from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
-
+from fastapi.security import HTTPAuthorizationCredentials
 from app.config.database import get_db
 from app.config.limiter import limiter
 from app.config.logging_config import logger
@@ -11,6 +8,7 @@ from app.dependencies import auth
 from app.schemas.auth import SyncUser
 from app.schemas.user import UserDetailResponse
 from app.services import auth as auth_service
+from app.utils import clerk_admin
 from app.utils.errors import UnauthorizedError
 
 router = APIRouter(prefix="", tags=["Auth"])
@@ -22,34 +20,33 @@ async def sync_profile(
     request: Request,
     body: SyncUser,
     db: AsyncSession = Depends(get_db),
-    credentials: HTTPAuthorizationCredentials = Depends(auth.security_scheme),
+    credentials: HTTPAuthorizationCredentials = Depends(auth.bearer_scheme)
 ):
-    """Create or update the app profile row for the authenticated Supabase user.
+    """Create or update the app profile row for the authenticated Clerk user.
 
-    Single write path for profile data: Supabase auth.users is the source of
-    truth, this endpoint only mirrors it. The frontend calls this after
-    supabase-js signUp **and** after every `supabase.auth.updateUser`
-    (names or email change). Idempotent.
+    Single write path for profile creation: POST /auth/sync is the only
+    endpoint that creates a profile row. The frontend calls this after Clerk
+    sign-up **and** after every profile update (names or email change).
+    Idempotent.
 
-    Profile claims are read from the token's ``user_metadata`` — keys are
-    snake_case (``first_name``, ``last_name``), matching what signUp writes.
-    The desired role travels in the request body; omitting it (null) keeps
-    TENANT on create and the stored role on update.
+    Profile data (email, names) is fetched from the Clerk Backend API
+    (``GET /v1/users/{id}``) — the token's ``sub`` identifies the user. The
+    desired role travels in the request body; omitting it (null) keeps TENANT
+    on create and the stored role on update.
     """
     if credentials is None:
         raise UnauthorizedError("Unauthorized")
-    claims = auth.verify_supabase_jwt(credentials.credentials)
+    claims = auth.authenticate_clerk_request(request)
     sub = claims.get("sub")
-    email = claims.get("email")
-    metadata = claims.get("user_metadata", {})
-    if not sub or not email:
+    logger.info("Sync request for Clerk user %s", sub)
+    if not sub:
         raise UnauthorizedError("Unauthorized")
-    try:
-        supabase_user_id = uuid.UUID(sub)
-    except (ValueError, AttributeError):
+    clerk_profile = await clerk_admin.fetch_clerk_user(sub)
+    if not clerk_profile.get("email"):
+        logger.error("Clerk user %s has no resolvable email address; rejecting sync", sub)
         raise UnauthorizedError("Unauthorized")
     user = await auth_service.sync_user(
-        db, supabase_user_id, email, metadata.get("first_name"), metadata.get("last_name"), body.role
+        db, sub, clerk_profile["email"], clerk_profile.get("first_name"), clerk_profile.get("last_name"), body.role
     )
     logger.info("Profile synced for user %s", user.id)
     return {

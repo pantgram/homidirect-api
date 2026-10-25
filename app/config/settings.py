@@ -10,9 +10,12 @@ class Settings(BaseSettings):
     log_file: str = "/home/pantgram/Documents/logs/homidirect_api.log"
     log_level: str = "INFO"
 
-    supabase_url: str
-    supabase_jwt_secret: str = ""
-    supabase_service_role_key: str = ""
+    clerk_secret_key: str
+    # Optional PEM public key: networkless verification. Empty → JWKS fallback.
+    clerk_jwt_key: str = ""
+    # Comma-separated `azp` allowlist; parsed into clerk_authorized_parties.
+    clerk_authorized_parties: str = ""
+    clerk_webhook_secret: str = ""
 
     r2_account_id: str
     r2_access_key_id: str
@@ -37,6 +40,13 @@ class Settings(BaseSettings):
         "image/gif",
         "application/pdf",
     ]
+
+    @computed_field
+    @property
+    def clerk_authorized_parties_list(self) -> list[str]:
+        # Never pass the raw comma-separated string to AuthenticateRequestOptions:
+        # it would become a single allowlist element and every request would fail.
+        return [party.strip() for party in self.clerk_authorized_parties.split(",") if party.strip()]
 
     @computed_field
     @property

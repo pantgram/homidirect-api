@@ -1,4 +1,5 @@
 # ruff: noqa: E402
+import json
 import os
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -8,9 +9,10 @@ from unittest.mock import AsyncMock, MagicMock
 # Environment variables take priority over the .env file in pydantic-settings.
 _TEST_ENV = {
     "DATABASE_URL": "postgresql+asyncpg://test:test@localhost:5432/test",
-    "SUPABASE_URL": "https://test-project.supabase.co",
-    "SUPABASE_JWT_SECRET": "",
-    "SUPABASE_SERVICE_ROLE_KEY": "test-service-role-key",
+    "CLERK_SECRET_KEY": "sk_test_dummy_secret_key",
+    "CLERK_JWT_KEY": "",
+    "CLERK_AUTHORIZED_PARTIES": "",
+    "CLERK_WEBHOOK_SECRET": "",
     "NODE_ENV": "test",
     "R2_ACCOUNT_ID": "test-account",
     "R2_ACCESS_KEY_ID": "test-key",
@@ -25,8 +27,10 @@ _TEST_ENV = {
 for _key, _value in _TEST_ENV.items():
     os.environ.setdefault(_key, _value)
 
+import httpx
 import jwt as pyjwt
 import pytest
+from clerk_backend_api import ClerkBaseError
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import event, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
@@ -62,21 +66,31 @@ for _table in Base.metadata.tables.values():
 
 API = "/api/v1"
 
-# Secret used to sign Supabase-shaped test tokens. The real JWKS verifier in
-# app.dependencies.auth is replaced (see mock_supabase_auth) so no network or
-# Supabase keys are needed in tests.
-TEST_AUTH_SECRET = "test-supabase-auth-secret-0123456789abcdef"
+# Secret used to sign Clerk-shaped test tokens. The real Clerk verifier in
+# app.dependencies.auth is replaced (see mock_clerk_auth) so no network, SDK or
+# Clerk keys are needed in tests.
+TEST_AUTH_SECRET = "test-clerk-auth-secret-0123456789abcdef"
 
 
-# --- Supabase Auth test doubles ---
+# --- Clerk Auth test doubles ---
 
 
-def make_test_token(sub: str, email: str, role: str = "authenticated", user_metadata: dict | None = None) -> str:
+# Registry of expected Clerk Backend API profiles, keyed by clerk_user_id.
+# sync_user registers the profile here; the fetch_clerk_user mock consumes it,
+# mirroring the real flow where profile data comes from the Backend API call.
+_clerk_user_registry: dict[str, dict] = {}
+
+
+def make_test_token(sub: str, email: str, user_metadata: dict | None = None) -> str:
+    """Sign a Clerk-shaped session token (sub="user_<hex>", azp, iat/exp) with
+    HS256. Claims are NOT the profile source: profile data travels through the
+    mocked Clerk Backend API, mirroring the real flow.
+    """
     now = datetime.now(timezone.utc)
     claims = {
         "sub": sub,
         "email": email,
-        "role": role,
+        "azp": "http://localhost:5173",
         "iat": int(now.timestamp()),
         "exp": int((now + timedelta(hours=1)).timestamp()),
     }
@@ -85,21 +99,23 @@ def make_test_token(sub: str, email: str, role: str = "authenticated", user_meta
     return pyjwt.encode(claims, TEST_AUTH_SECRET, algorithm="HS256")
 
 
-def _fake_verify_supabase_jwt(token: str) -> dict:
+def _fake_authenticate_clerk_request(request) -> dict:
     from app.utils.errors import UnauthorizedError
 
+    bearer = request.headers.get("Authorization")
+    if not bearer or not bearer.startswith("Bearer "):
+        raise UnauthorizedError("Unauthorized")
+    token = bearer.removeprefix("Bearer ")
     try:
         payload = pyjwt.decode(token, TEST_AUTH_SECRET, algorithms=["HS256"])
     except pyjwt.PyJWTError:
-        raise UnauthorizedError("Unauthorized")
-    if payload.get("role") != "authenticated":
         raise UnauthorizedError("Unauthorized")
     return payload
 
 
 @pytest.fixture(autouse=True)
-def mock_supabase_auth(monkeypatch):
-    monkeypatch.setattr("app.dependencies.auth.verify_supabase_jwt", _fake_verify_supabase_jwt)
+def mock_clerk_auth(monkeypatch):
+    monkeypatch.setattr("app.dependencies.auth.authenticate_clerk_request", _fake_authenticate_clerk_request)
 
 
 # --- Helpers (plain functions, usable from any test module) ---
@@ -113,14 +129,15 @@ async def sync_user(
     last_name: str = "User",
     sub: str | None = None,
 ) -> dict:
-    """Create the profile row for a Supabase-authenticated user (POST /auth/sync)
+    """Create the profile row for a Clerk-authenticated user (POST /auth/sync)
     and return {"user", "token", "sub", "email"}.
 
-    Names travel in the token's user_metadata with snake_case keys, exactly like
-    real Supabase access tokens; the desired role travels in the JSON body.
+    Names travel through the mocked Clerk Backend API (fetch_clerk_user),
+    exactly like the real flow; the desired role travels in the JSON body.
     """
-    sub = sub or str(uuid.uuid4())
-    token = make_test_token(sub, email, user_metadata={"first_name": first_name, "last_name": last_name})
+    sub = sub or f"user_{uuid.uuid4().hex}"
+    _clerk_user_registry[sub] = {"email": email, "first_name": first_name, "last_name": last_name}
+    token = make_test_token(sub, email)
     response = await client.post(f"{API}/auth/sync", json={"role": role}, headers={"Authorization": f"Bearer {token}"})
     assert response.status_code == 200, response.text
     return {"user": response.json()["user"], "token": token, "sub": sub, "email": email}
@@ -134,7 +151,7 @@ async def create_db_user(
 ) -> User:
     user = User(
         email=email,
-        supabase_user_id=uuid.uuid4(),
+        clerk_user_id=f"user_{uuid.uuid4().hex}",
         first_name="Db",
         last_name="User",
         role=role,
@@ -147,7 +164,7 @@ async def create_db_user(
 
 
 def auth_headers_for(user: User) -> dict:
-    token = make_test_token(str(user.supabase_user_id), user.email)
+    token = make_test_token(user.clerk_user_id, user.email)
     return {"Authorization": f"Bearer {token}"}
 
 
@@ -207,12 +224,22 @@ def _disable_rate_limiting():
 
 @pytest.fixture(autouse=True)
 def mock_external_services(monkeypatch):
-    """Replace outbound e-mail, R2 storage and Supabase admin calls with mocks."""
+    """Replace outbound e-mail, R2 storage, Clerk Backend API and webhook
+    signature verification calls with mocks."""
     from app.api.v1 import listings as listings_api
+    from app.api.v1 import webhooks as webhooks_api
     from app.services import time_slot as time_slot_service
     from app.services import verification as verification_service
+    from app.utils import clerk_admin
     from app.utils import storage as storage_utils
-    from app.utils import supabase_admin
+
+    async def _fake_fetch_clerk_user(clerk_user_id: str) -> dict:
+        # Registry-backed: sync_user registers expected profile data before
+        # POSTing, mirroring the real Backend API round-trip.
+        profile = _clerk_user_registry.get(clerk_user_id)
+        if profile is None:
+            raise ClerkBaseError("Not Found", raw_response=httpx.Response(404))
+        return dict(profile)
 
     mocks = {
         "delete_auth_user": AsyncMock(return_value=True),
@@ -224,9 +251,12 @@ def mock_external_services(monkeypatch):
         "upload_to_r2": MagicMock(side_effect=lambda key, data, mime: f"http://localhost:9000/test-bucket/{key}"),
         "delete_from_r2": MagicMock(),
         "copy_in_r2": MagicMock(side_effect=lambda old, new: f"http://localhost:9000/test-bucket/{new}"),
+        "verify_webhook": MagicMock(side_effect=lambda payload, headers: json.loads(payload)),
     }
 
-    monkeypatch.setattr(supabase_admin, "delete_auth_user", mocks["delete_auth_user"])
+    monkeypatch.setattr(clerk_admin, "fetch_clerk_user", _fake_fetch_clerk_user)
+    monkeypatch.setattr(clerk_admin, "delete_auth_user", mocks["delete_auth_user"])
+    monkeypatch.setattr(webhooks_api, "verify_webhook", mocks["verify_webhook"])
     monkeypatch.setattr(listings_api, "send_contact_owner_email", mocks["contact_owner"])
     monkeypatch.setattr(time_slot_service, "send_booking_created_email", mocks["booking_created"])
     monkeypatch.setattr(time_slot_service, "send_booking_confirmed_email", mocks["booking_confirmed"])

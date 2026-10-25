@@ -9,6 +9,7 @@ from . import (
     time_slots,
     users,
     verification,
+    webhooks,
 )
 
 router = APIRouter(prefix="/v1")
@@ -22,3 +23,4 @@ router.include_router(verification.router)
 router.include_router(verification.admin_router)
 router.include_router(favorites.router)
 router.include_router(health.router)
+router.include_router(webhooks.router)

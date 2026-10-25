@@ -1,5 +1,3 @@
-import uuid
-
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,31 +12,31 @@ _MAX_NAME_LENGTH = 100
 
 async def sync_user(
     db: AsyncSession,
-    supabase_user_id: uuid.UUID,
+    clerk_user_id: str,
     email: str,
     first_name: str | None,
     last_name: str | None,
     role: str | None = None,
 ) -> User:
-    """Create the app profile row for an authenticated Supabase user, or update
-    the existing one from Supabase-owned claims. Idempotent; safe to call after
-    every signup/login and after every supabase.auth.updateUser.
+    """Create the app profile row for an authenticated Clerk user, or update
+    the existing one from Clerk-owned profile data. Idempotent; safe to call
+    after every signup/login and after every profile update.
 
-    Supabase is the single source of truth for email and names; the desired
+    Clerk is the single source of truth for email and names; the desired
     role comes from the /auth/sync request body: an allowlisted role is applied
     on create (TENANT fallback) and on update, anything else keeps the stored
     value. ADMIN can never be assigned here.
     """
-    result = await db.execute(select(User).where(User.supabase_user_id == supabase_user_id))
+    result = await db.execute(select(User).where(User.clerk_user_id == clerk_user_id))
     user = result.scalar_one_or_none()
 
     if user is None:
         result = await db.execute(select(User.id).where(User.email == email))
         if result.scalar_one_or_none() is not None:
-            logger.warning("Profile sync rejected: email already registered for supabase user %s", supabase_user_id)
+            logger.warning("Profile sync rejected: email already registered for clerk user %s", clerk_user_id)
             raise ConflictError("Email already registered")
         user = User(
-            supabase_user_id=supabase_user_id,
+            clerk_user_id=clerk_user_id,
             email=email,
             first_name=(first_name or "").strip()[:_MAX_NAME_LENGTH],
             last_name=(last_name or "").strip()[:_MAX_NAME_LENGTH],

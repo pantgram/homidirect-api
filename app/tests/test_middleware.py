@@ -17,7 +17,8 @@ class TestCamelCaseResponses:
         assert "titleEl" in body
         assert "propertyType" in body
         assert "verificationStatus" in body
-        assert "isFeatured" in body
+        assert "featuredUntil" in body
+        assert "is_featured" not in body
         assert "title_el" not in body
 
     async def test_pagination_keys_are_camel_case(self, client, landlord_headers):

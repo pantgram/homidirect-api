@@ -116,12 +116,12 @@ async def sync_user(
     """Create the profile row for a Supabase-authenticated user (POST /auth/sync)
     and return {"user", "token", "sub", "email"}.
 
-    Profile data travels in the token's user_metadata with snake_case keys,
-    exactly like real Supabase access tokens — the endpoint has no request body.
+    Names travel in the token's user_metadata with snake_case keys, exactly like
+    real Supabase access tokens; the desired role travels in the JSON body.
     """
     sub = sub or str(uuid.uuid4())
-    token = make_test_token(sub, email, user_metadata={"first_name": first_name, "last_name": last_name, "role": role})
-    response = await client.post(f"{API}/auth/sync", headers={"Authorization": f"Bearer {token}"})
+    token = make_test_token(sub, email, user_metadata={"first_name": first_name, "last_name": last_name})
+    response = await client.post(f"{API}/auth/sync", json={"role": role}, headers={"Authorization": f"Bearer {token}"})
     assert response.status_code == 200, response.text
     return {"user": response.json()["user"], "token": token, "sub": sub, "email": email}
 

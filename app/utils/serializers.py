@@ -54,7 +54,6 @@ def listing_to_dict(listing: Listing) -> dict:
         "verification_status": listing.verification_status,
         "verified_at": listing.verified_at.isoformat() if listing.verified_at else None,
         "verified_by": listing.verified_by,
-        "is_featured": listing.is_featured,
         "featured_until": listing.featured_until.isoformat() if listing.featured_until else None,
         "title_el": listing.title_el,
         "title_en": listing.title_en,

@@ -18,15 +18,16 @@ async def sync_user(
     email: str,
     first_name: str | None,
     last_name: str | None,
-    role: str | None,
+    role: str | None = None,
 ) -> User:
     """Create the app profile row for an authenticated Supabase user, or update
     the existing one from Supabase-owned claims. Idempotent; safe to call after
     every signup/login and after every supabase.auth.updateUser.
 
-    Supabase is the single source of truth for email, names and role: missing or
-    invalid claims keep the stored values, and ADMIN can never come from
-    user_metadata.
+    Supabase is the single source of truth for email and names; the desired
+    role comes from the /auth/sync request body: an allowlisted role is applied
+    on create (TENANT fallback) and on update, anything else keeps the stored
+    value. ADMIN can never be assigned here.
     """
     result = await db.execute(select(User).where(User.supabase_user_id == supabase_user_id))
     user = result.scalar_one_or_none()

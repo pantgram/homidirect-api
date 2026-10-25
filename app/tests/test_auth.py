@@ -52,7 +52,9 @@ class TestSync:
             user_metadata={"first_name": "New", "last_name": "Name"},
         )
 
-        response = await client.post(f"{API}/auth/sync", headers={"Authorization": f"Bearer {token}"})
+        response = await client.post(
+            f"{API}/auth/sync", json={"role": None}, headers={"Authorization": f"Bearer {token}"}
+        )
 
         assert response.status_code == 200
         body = response.json()["user"]
@@ -61,59 +63,79 @@ class TestSync:
         assert body["lastName"] == "Name"
         assert body["email"] == "after@example.com"
 
-    @pytest.mark.parametrize("role", ["LANDLORD", "TENANT", "BOTH"])
-    async def test_sync_copies_allowlisted_role(self, client, role):
+    @pytest.mark.parametrize("role", ["LANDLORD", "TENANT"])
+    async def test_sync_applies_body_role(self, client, role):
         data = await sync_user(client, email=f"{role.lower()}-copy@example.com", role=role)
 
         assert data["user"]["role"] == role
 
-    async def test_sync_ignores_admin_role_in_metadata(self, client):
-        """ADMIN can never come from client-writable user_metadata."""
-        data = await sync_user(client, email="no-admin@example.com", role="TENANT")
-        token = make_test_token(
-            data["sub"],
-            "no-admin@example.com",
-            user_metadata={"first_name": "Test", "last_name": "User", "role": "ADMIN"},
+    @pytest.mark.parametrize("role", ["BOTH", "ADMIN", "SUPERUSER"])
+    async def test_sync_rejects_unassignable_body_role(self, client, role):
+        """BOTH and ADMIN exist in the app but can never be self-assigned via /auth/sync."""
+        token = make_test_token(str(uuid.uuid4()), f"{role.lower()}-rejected@example.com")
+
+        response = await client.post(
+            f"{API}/auth/sync", json={"role": role}, headers={"Authorization": f"Bearer {token}"}
         )
 
-        response = await client.post(f"{API}/auth/sync", headers={"Authorization": f"Bearer {token}"})
+        assert response.status_code == 422
+
+    async def test_sync_defaults_to_tenant_without_body_role(self, client):
+        token = make_test_token(str(uuid.uuid4()), "default-role@example.com")
+
+        response = await client.post(
+            f"{API}/auth/sync", json={"role": None}, headers={"Authorization": f"Bearer {token}"}
+        )
 
         assert response.status_code == 200
         assert response.json()["user"]["role"] == "TENANT"
 
-    async def test_sync_ignores_invalid_role_in_metadata(self, client):
-        data = await sync_user(client, email="bad-role@example.com", role="LANDLORD")
-        token = make_test_token(
-            data["sub"],
-            "bad-role@example.com",
-            user_metadata={"first_name": "Test", "last_name": "User", "role": "SUPERUSER"},
-        )
+    async def test_sync_requires_request_body(self, client):
+        token = make_test_token(str(uuid.uuid4()), "no-body@example.com")
 
         response = await client.post(f"{API}/auth/sync", headers={"Authorization": f"Bearer {token}"})
+
+        assert response.status_code == 422
+
+    async def test_sync_keeps_stored_role_when_body_role_missing(self, client):
+        data = await sync_user(client, email="keep-role@example.com", role="LANDLORD")
+        token = make_test_token(data["sub"], "keep-role@example.com")
+
+        response = await client.post(
+            f"{API}/auth/sync", json={"role": None}, headers={"Authorization": f"Bearer {token}"}
+        )
 
         assert response.status_code == 200
         assert response.json()["user"]["role"] == "LANDLORD"
 
-        # On create, an invalid metadata role falls back to the TENANT default.
-        create_token = make_test_token(
+    async def test_sync_ignores_role_in_token_metadata(self, client):
+        """Role comes from the body only; ADMIN in client-writable user_metadata is ignored."""
+        token = make_test_token(
             str(uuid.uuid4()),
-            "default-role@example.com",
-            user_metadata={"first_name": "New", "last_name": "User", "role": "SUPERUSER"},
+            "metadata-role@example.com",
+            user_metadata={"first_name": "Test", "last_name": "User", "role": "ADMIN"},
         )
-        created = await client.post(f"{API}/auth/sync", headers={"Authorization": f"Bearer {create_token}"})
-        assert created.json()["user"]["role"] == "TENANT"
+
+        response = await client.post(
+            f"{API}/auth/sync", json={"role": "LANDLORD"}, headers={"Authorization": f"Bearer {token}"}
+        )
+
+        assert response.status_code == 200
+        assert response.json()["user"]["role"] == "LANDLORD"
 
     async def test_sync_conflicting_email(self, client, session):
         await create_db_user(session, email="taken@example.com")
 
         token = make_test_token(str(uuid.uuid4()), "taken@example.com")
-        response = await client.post(f"{API}/auth/sync", headers={"Authorization": f"Bearer {token}"})
+        response = await client.post(
+            f"{API}/auth/sync", json={"role": "TENANT"}, headers={"Authorization": f"Bearer {token}"}
+        )
 
         assert response.status_code == 409
         assert response.json() == {"error": "ConflictError", "message": "Email already registered"}
 
     async def test_sync_requires_authentication(self, client):
-        response = await client.post(f"{API}/auth/sync")
+        response = await client.post(f"{API}/auth/sync", json={"role": "TENANT"})
 
         assert response.status_code == 401
 
@@ -123,15 +145,17 @@ class TestSync:
             "wrong-secret-that-is-long-enough-for-hs256",
             algorithm="HS256",
         )
-        response = await client.post(f"{API}/auth/sync", headers={"Authorization": f"Bearer {token}"})
+        response = await client.post(
+            f"{API}/auth/sync", json={"role": "TENANT"}, headers={"Authorization": f"Bearer {token}"}
+        )
 
         assert response.status_code == 401
 
     async def test_sync_rejects_missing_email_claim(self, client):
-        token = pyjwt.encode(
-            {"sub": str(uuid.uuid4()), "role": "authenticated"}, TEST_AUTH_SECRET, algorithm="HS256"
+        token = pyjwt.encode({"sub": str(uuid.uuid4()), "role": "authenticated"}, TEST_AUTH_SECRET, algorithm="HS256")
+        response = await client.post(
+            f"{API}/auth/sync", json={"role": "TENANT"}, headers={"Authorization": f"Bearer {token}"}
         )
-        response = await client.post(f"{API}/auth/sync", headers={"Authorization": f"Bearer {token}"})
 
         assert response.status_code == 401
 
@@ -165,9 +189,7 @@ class TestCurrentUserAuth:
     async def test_anonymous_role_treated_as_unauthenticated_for_optional_user(self, client):
         token = make_test_token(str(uuid.uuid4()), "anon-search@example.com", role="anonymous")
 
-        response = await client.get(
-            f"{API}/listings/search", headers={"Authorization": f"Bearer {token}"}
-        )
+        response = await client.get(f"{API}/listings/search", headers={"Authorization": f"Bearer {token}"})
 
         assert response.status_code == 200
 
@@ -196,9 +218,9 @@ class TestCurrentUserAuth:
         user.supabase_user_id = uuid.UUID(sub)
         await session.commit()
 
-        response = await client.get(f"{API}/users/me", headers=headers_from_tokens(
-            {"token": make_test_token(sub, user.email)}
-        ))
+        response = await client.get(
+            f"{API}/users/me", headers=headers_from_tokens({"token": make_test_token(sub, user.email)})
+        )
 
         assert response.status_code == 200
         assert response.json()["email"] == "mapped@example.com"

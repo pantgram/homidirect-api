@@ -54,7 +54,6 @@ class Listing(Base):
     verification_status: Mapped[str] = mapped_column(verification_status_enum, nullable=False, server_default="PENDING")
     verified_at: Mapped[sa.DateTime | None] = mapped_column(sa.TIMESTAMP(timezone=True))
     verified_by: Mapped[int | None] = mapped_column(sa.Integer, sa.ForeignKey("users.id", ondelete="SET NULL"))
-    is_featured: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, server_default=sa.false())
     featured_until: Mapped[sa.DateTime | None] = mapped_column(sa.TIMESTAMP(timezone=True))
     title_el: Mapped[str] = mapped_column(sa.String(100), nullable=False, server_default="")
     title_en: Mapped[str | None] = mapped_column(sa.String(100))
@@ -82,7 +81,6 @@ class Listing(Base):
             name="date_built",
         ),
         sa.Index("listings_verification_status_idx", "verification_status"),
-        sa.Index("listings_is_featured_idx", "is_featured"),
         sa.Index("listings_featured_until_idx", "featured_until"),
         sa.Index("listings_city_idx", "city"),
         sa.Index("listings_landlord_id_idx", "landlord_id"),

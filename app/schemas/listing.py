@@ -1,7 +1,7 @@
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from app.schemas.base import CamelModel
 from app.schemas.common import Pagination
@@ -48,7 +48,6 @@ class ListingResponse(CamelModel):
     verification_status: str
     verified_at: datetime | None
     verified_by: int | None
-    is_featured: bool
     featured_until: datetime | None
     title_el: str
     title_en: str | None
@@ -148,6 +147,16 @@ class SearchListingsParams(CamelModel):
     sort_by: str = "featured"
     page: int = 1
     limit: int = 15
+
+
+class FeatureListingRequest(CamelModel):
+    featured_until: datetime
+
+    @model_validator(mode="after")
+    def featured_until_must_be_future(self):
+        if self.featured_until <= datetime.now(tz=timezone.utc):
+            raise ValueError("featured_until must be in the future")
+        return self
 
 
 class ContactOwnerRequest(CamelModel):

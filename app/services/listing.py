@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import and_, asc, desc, func, or_, select, text
+from sqlalchemy import and_, asc, desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config.logging_config import logger
@@ -66,6 +66,19 @@ async def update_listing(db: AsyncSession, listing_id: int, data: dict):
     for key, value in data.items():
         if value is not None:
             setattr(listing, key, value)
+    listing.updated_at = datetime.now(timezone.utc)
+    await db.flush()
+    await db.refresh(listing)
+    return listing
+
+
+async def set_featured_until(db: AsyncSession, listing_id: int, featured_until: datetime | None):
+    result = await db.execute(select(Listing).where(Listing.id == listing_id))
+    listing = result.scalar_one_or_none()
+    if not listing:
+        raise NotFoundError("Listing not found")
+
+    listing.featured_until = featured_until
     listing.updated_at = datetime.now(timezone.utc)
     await db.flush()
     await db.refresh(listing)
@@ -147,7 +160,10 @@ async def search_listings(db: AsyncSession, params: dict, is_authenticated: bool
     if params.get("furnished") is not None:
         conditions.append(Listing.furnished == params["furnished"])
     if params.get("is_featured") is not None:
-        conditions.append(Listing.is_featured == params["is_featured"])
+        if params["is_featured"]:
+            conditions.append(Listing.featured_until > func.now())
+        else:
+            conditions.append(or_(Listing.featured_until.is_(None), Listing.featured_until <= func.now()))
     if params.get("verification_status"):
         conditions.append(Listing.verification_status == params["verification_status"])
     if params.get("date_available_from"):
@@ -169,7 +185,10 @@ async def search_listings(db: AsyncSession, params: dict, is_authenticated: bool
 
     sort_by = params.get("sort_by", "featured")
     if sort_by == "featured":
-        query = query.order_by(desc(Listing.is_featured), desc(text("CASE WHEN featured_until > NOW() THEN 1 ELSE 0 END")), desc(Listing.created_at))
+        # A listing is featured iff featured_until > NOW(); coalesce keeps never-featured
+        # (NULL) listings last on PG, where DESC would otherwise put NULLs first.
+        is_active = func.coalesce(Listing.featured_until > func.now(), False)
+        query = query.order_by(is_active.desc(), desc(Listing.created_at))
     elif sort_by == "newest":
         query = query.order_by(desc(Listing.created_at))
     elif sort_by == "oldest":

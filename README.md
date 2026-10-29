@@ -1,6 +1,6 @@
 # HomiDirect API
 
-REST API for the HomiDirect real estate platform — property listings, visit bookings, listing verification, favorites, and geocoding, with Greek/English bilingual listing content.
+REST API for the HomiDirect real estate platform — property listings, visit bookings, listing verification, and favorites, with Greek/English bilingual listing content.
 
 Built with **FastAPI**, **SQLAlchemy 2.0 (async)**, and **PostgreSQL**. Packaged with [uv](https://docs.astral.sh/uv/), Dockerized, and covered by an async pytest suite.
 
@@ -14,7 +14,6 @@ Built with **FastAPI**, **SQLAlchemy 2.0 (async)**, and **PostgreSQL**. Packaged
 - **Favorites** — add/remove/check favorite listings, paginated favorites feed
 - **Bookings** — visit booking between tenants and landlords, status lifecycle (pending → confirmed/declined/cancelled) with notification emails. Bookings are slot-only: `POST /bookings` requires `availabilitySlotId` and `scheduledAt` is derived from the slot (not client-supplied). Rescheduling via PATCH is not supported — cancel (or decline) and rebook; both free the slot.
 - **Availability slots** — fixed 30-minute bookable windows per listing (`startTime` only; `endTime` is derived server-side)
-- **Geocoding** — Geoapify-powered search, address autocomplete, and reverse geocoding with a DB cache layer
 - **Cross-cutting** — camelCase JSON responses (middleware + Pydantic aliases), consistent error format, slowapi rate limiting on auth endpoints, CORS
 
 ## Tech Stack
@@ -28,7 +27,6 @@ Built with **FastAPI**, **SQLAlchemy 2.0 (async)**, and **PostgreSQL**. Packaged
 | Auth | Supabase Auth + PyJWT (`pyjwt[crypto]`) verification via JWKS |
 | Storage | Cloudflare R2 (boto3) |
 | Email | aiosmtplib |
-| Geocoding | Geoapify |
 | Tooling | uv, ruff, pytest + pytest-asyncio |
 
 ## Getting Started
@@ -38,7 +36,7 @@ Built with **FastAPI**, **SQLAlchemy 2.0 (async)**, and **PostgreSQL**. Packaged
 - Python ≥ 3.12
 - [uv](https://docs.astral.sh/uv/)
 - PostgreSQL (or a connection string to one)
-- Cloudflare R2, SMTP, and Geoapify credentials for full functionality
+- Cloudflare R2 and SMTP credentials for full functionality
 
 ### Installation
 
@@ -108,7 +106,6 @@ All routes are prefixed with `/api/v1`. Authenticated routes expect `Authorizati
 | Favorites | `GET /favorites`, `GET /favorites/ids`, `GET /favorites/{id}/check`, `POST/DELETE /favorites/{id}` |
 | Bookings | `GET/POST /bookings`, `GET/PATCH/DELETE /bookings/{id}`, `GET /bookings/listing/{id}` |
 | Availability Slots | `GET/POST /availability-slots`, `GET /availability-slots/listing/{id}`, `GET /availability-slots/listing/{id}/available`, `GET/PATCH/DELETE /availability-slots/{id}` |
-| Geocoding | `GET /geocoding/search`, `GET /geocoding/address-search`, `GET /geocoding/reverse` |
 
 Full request/response schemas are available in the OpenAPI docs at `/docs`.
 
@@ -146,7 +143,6 @@ See [.env.example](.env.example) for all variables:
 | `NODE_ENV` | Environment name |
 | `R2_*` | Cloudflare R2 credentials, bucket, public URL |
 | `SMTP_*`, `EMAIL_FROM` | Outbound email for booking/verification notifications (default Zoho) |
-| `GEOAPIFY_API_KEY` | Geoapify geocoding |
 
 ## Authentication
 

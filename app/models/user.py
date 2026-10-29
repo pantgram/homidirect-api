@@ -1,8 +1,6 @@
-import uuid
 from typing import TYPE_CHECKING
 
 import sqlalchemy as sa
-from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.config.database import Base
@@ -17,7 +15,7 @@ class User(Base):
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(sa.Integer, primary_key=True, autoincrement=True)
-    supabase_user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), unique=True, index=True)
+    clerk_user_id: Mapped[str] = mapped_column(sa.String(255), unique=True, index=True)
     first_name: Mapped[str] = mapped_column(sa.String(100), nullable=False)
     last_name: Mapped[str] = mapped_column(sa.String(100), nullable=False)
     role: Mapped[str] = mapped_column(user_role_enum, nullable=False)

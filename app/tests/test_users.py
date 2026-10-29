@@ -38,7 +38,7 @@ class TestDeleteUser:
 
         assert response.status_code == 204
 
-    async def test_supabase_auth_user_deleted_after_account_deletion(
+    async def test_clerk_auth_user_deleted_after_account_deletion(
         self, client, tenant, tenant_headers, mock_external_services
     ):
         response = await client.delete(f"{API}/users/{tenant['user']['id']}", headers=tenant_headers)

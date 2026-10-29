@@ -7,10 +7,9 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 if TYPE_CHECKING:
 
-    from app.models.availability_slot import AvailabilitySlot
-    from app.models.booking import Booking
     from app.models.interested_listing import InterestedListing
     from app.models.listing_image import ListingImage
+    from app.models.time_slot import TimeSlot
     from app.models.user import User
     from app.models.verification_document import VerificationDocument
     from app.models.verification_history import VerificationHistory
@@ -55,7 +54,6 @@ class Listing(Base):
     verification_status: Mapped[str] = mapped_column(verification_status_enum, nullable=False, server_default="PENDING")
     verified_at: Mapped[sa.DateTime | None] = mapped_column(sa.TIMESTAMP(timezone=True))
     verified_by: Mapped[int | None] = mapped_column(sa.Integer, sa.ForeignKey("users.id", ondelete="SET NULL"))
-    is_featured: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, server_default=sa.false())
     featured_until: Mapped[sa.DateTime | None] = mapped_column(sa.TIMESTAMP(timezone=True))
     title_el: Mapped[str] = mapped_column(sa.String(100), nullable=False, server_default="")
     title_en: Mapped[str | None] = mapped_column(sa.String(100))
@@ -65,9 +63,8 @@ class Listing(Base):
     landlord: Mapped["User"] = relationship("User", foreign_keys=[landlord_id], back_populates="listings")
     verified_by_user: Mapped["User | None"] = relationship("User", foreign_keys=[verified_by], back_populates="verified_listings")
     images: Mapped[list["ListingImage"]] = relationship("ListingImage", back_populates="listing")
-    bookings: Mapped[list["Booking"]] = relationship("Booking", back_populates="listing")
     interested_users: Mapped[list["InterestedListing"]] = relationship("InterestedListing", back_populates="listing")
-    availability_slots: Mapped[list["AvailabilitySlot"]] = relationship("AvailabilitySlot", back_populates="listing")
+    time_slots: Mapped[list["TimeSlot"]] = relationship("TimeSlot", back_populates="listing")
     verification_documents: Mapped[list["VerificationDocument"]] = relationship("VerificationDocument", back_populates="listing")
     verification_history_entries: Mapped[list["VerificationHistory"]] = relationship("VerificationHistory", back_populates="listing")
 
@@ -84,7 +81,6 @@ class Listing(Base):
             name="date_built",
         ),
         sa.Index("listings_verification_status_idx", "verification_status"),
-        sa.Index("listings_is_featured_idx", "is_featured"),
         sa.Index("listings_featured_until_idx", "featured_until"),
         sa.Index("listings_city_idx", "city"),
         sa.Index("listings_landlord_id_idx", "landlord_id"),

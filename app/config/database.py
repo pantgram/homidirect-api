@@ -38,7 +38,7 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
             await session.commit()
         except Exception:
             await session.rollback()
-            logger.warning("Database session rolled back due to unhandled exception", exc_info=True)
+            logger.exception("Database session rolled back due to unhandled exception", exc_info=True)
             raise
         finally:
             await session.close()

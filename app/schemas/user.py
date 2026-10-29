@@ -1,7 +1,7 @@
 from app.schemas.base import CamelModel
 
-# Allowlist for roles that may arrive from Supabase user_metadata during
-# profile sync (app/services/auth.py). ADMIN is deliberately not assignable.
+# Allowlist for roles that may arrive in the /auth/sync request body
+# (app/services/auth.py). ADMIN is deliberately not assignable.
 VALID_ROLES = {"LANDLORD", "TENANT", "BOTH"}
 
 

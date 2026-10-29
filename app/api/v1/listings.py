@@ -4,7 +4,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config.database import get_db
 from app.config.logging_config import logger
-from app.dependencies.auth import get_current_user, get_optional_user, require_role, verify_listing_ownership
+from app.dependencies.auth import (
+    get_current_user,
+    get_optional_user,
+    require_admin,
+    require_role,
+    verify_listing_ownership,
+)
 from app.models.user import User
 from app.models.user import User as UserModel
 from app.schemas.common import MessageResponse
@@ -13,6 +19,7 @@ from app.schemas.listing import (
     MIN_YEAR_BUILT,
     ContactOwnerRequest,
     CreateListingRequest,
+    FeatureListingRequest,
     ListingDetailResponse,
     ListingListResponse,
     ListingStatsResponse,
@@ -137,6 +144,28 @@ async def delete_listing(
     await verify_listing_ownership(listing_id, db, current_user)
     await listing_service.delete_listing(db, listing_id)
     logger.info("Listing %s deleted by user %s", listing_id, current_user.id)
+
+
+@router.post("/{listing_id}/feature", response_model=ListingDetailResponse)
+async def feature_listing(
+    listing_id: int,
+    body: FeatureListingRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    listing = await listing_service.set_featured_until(db, listing_id, body.featured_until)
+    logger.info("Listing %s featured until %s by admin %s", listing_id, body.featured_until, current_user.id)
+    return {"listing": listing_to_dict(listing)}
+
+
+@router.delete("/{listing_id}/feature", status_code=204)
+async def unfeature_listing(
+    listing_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    await listing_service.set_featured_until(db, listing_id, None)
+    logger.info("Listing %s unfeatured by admin %s", listing_id, current_user.id)
 
 
 @router.post("/{listing_id}/contact", response_model=MessageResponse)

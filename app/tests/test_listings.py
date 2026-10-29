@@ -1,6 +1,23 @@
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 
+from sqlalchemy import select
+
+from app.models.listing import Listing
 from app.tests.conftest import API, create_listing, headers_from_tokens, listing_payload, sync_user
+
+
+async def set_featured_until(session, listing_id: int, featured_until: datetime | None):
+    """Write featured_until directly: the admin endpoint only accepts future dates,
+    so expired windows (the interesting filter case) can't be created through the API.
+    The naive UTC wall clock matches SQLite's CURRENT_TIMESTAMP for string comparison."""
+    result = await session.execute(select(Listing).where(Listing.id == listing_id))
+    listing = result.scalar_one()
+    listing.featured_until = featured_until
+    await session.commit()
+
+
+def featured_until_payload(days: float = 7) -> dict:
+    return {"featuredUntil": (datetime.now(timezone.utc) + timedelta(days=days)).isoformat()}
 
 
 class TestCreateListing:
@@ -11,7 +28,7 @@ class TestCreateListing:
         assert body["city"] == "Athens"
         assert body["titleEl"] == "Προς νομή"
         assert body["verificationStatus"] == "PENDING"
-        assert body["isFeatured"] is False
+        assert body["featuredUntil"] is None
         assert body["id"] > 0
         assert body["createdAt"]
         assert body["dateAvailable"] == "2026-10-01"
@@ -252,19 +269,123 @@ class TestSearch:
         prices = [item["price"] for item in response.json()["data"]]
         assert prices == sorted(prices)
 
-    async def test_search_default_featured_sort(self, client, landlord_headers):
-        await create_listing(client, landlord_headers, price=100.0)
+    async def test_search_default_featured_sort(self, client, landlord_headers, admin_headers):
+        plain = await create_listing(client, landlord_headers, price=100.0)
+        featured = await create_listing(client, landlord_headers, price=200.0)
+
+        response = await client.post(
+            f"{API}/listings/{featured['id']}/feature", json=featured_until_payload(), headers=admin_headers
+        )
+        assert response.status_code == 200
 
         response = await client.get(f"{API}/listings/search")
 
         assert response.status_code == 200
-        assert response.json()["pagination"]["total"] == 1
+        assert response.json()["pagination"]["total"] == 2
+        assert [item["id"] for item in response.json()["data"]] == [featured["id"], plain["id"]]
 
     async def test_search_requires_no_authentication(self, client, listing):
         response = await client.get(f"{API}/listings/search")
 
         assert response.status_code == 200
         assert response.json()["pagination"]["total"] == 1
+
+
+class TestFeaturedFilter:
+    async def test_is_featured_true_returns_only_active_window(self, client, session, landlord_headers):
+        featured = await create_listing(client, landlord_headers)
+        expired = await create_listing(client, landlord_headers)
+        await create_listing(client, landlord_headers)  # never featured
+
+        await set_featured_until(session, featured["id"], datetime.now(timezone.utc) + timedelta(days=7))
+        await set_featured_until(session, expired["id"], datetime.now(timezone.utc) - timedelta(days=1))
+
+        response = await client.get(f"{API}/listings/search", params={"isFeatured": "true"})
+
+        assert response.status_code == 200
+        assert [item["id"] for item in response.json()["data"]] == [featured["id"]]
+
+    async def test_is_featured_false_excludes_active_window(self, client, session, landlord_headers):
+        featured = await create_listing(client, landlord_headers)
+        never = await create_listing(client, landlord_headers)
+        expired = await create_listing(client, landlord_headers)
+
+        await set_featured_until(session, featured["id"], datetime.now(timezone.utc) + timedelta(days=7))
+        await set_featured_until(session, expired["id"], datetime.now(timezone.utc) - timedelta(days=1))
+
+        response = await client.get(f"{API}/listings/search", params={"isFeatured": "false"})
+
+        assert response.status_code == 200
+        assert {item["id"] for item in response.json()["data"]} == {never["id"], expired["id"]}
+
+
+class TestFeatureAdmin:
+    async def test_feature_sets_featured_until(self, client, listing, admin_headers):
+        response = await client.post(
+            f"{API}/listings/{listing['id']}/feature", json=featured_until_payload(), headers=admin_headers
+        )
+
+        assert response.status_code == 200
+        assert response.json()["listing"]["featuredUntil"] is not None
+
+        search = await client.get(f"{API}/listings/search", params={"isFeatured": "true"})
+        assert [item["id"] for item in search.json()["data"]] == [listing["id"]]
+
+    async def test_feature_rejects_past_date(self, client, listing, admin_headers):
+        payload = {"featuredUntil": (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()}
+
+        response = await client.post(f"{API}/listings/{listing['id']}/feature", json=payload, headers=admin_headers)
+
+        assert response.status_code == 422
+
+    async def test_feature_forbidden_for_landlord(self, client, listing, landlord_headers):
+        response = await client.post(
+            f"{API}/listings/{listing['id']}/feature", json=featured_until_payload(), headers=landlord_headers
+        )
+
+        assert response.status_code == 403
+        assert response.json()["message"] == "Admin access required"
+
+    async def test_feature_forbidden_for_tenant(self, client, listing, tenant_headers):
+        response = await client.post(
+            f"{API}/listings/{listing['id']}/feature", json=featured_until_payload(), headers=tenant_headers
+        )
+
+        assert response.status_code == 403
+
+    async def test_feature_requires_authentication(self, client, listing):
+        response = await client.post(f"{API}/listings/{listing['id']}/feature", json=featured_until_payload())
+
+        assert response.status_code == 401
+
+    async def test_feature_unknown_listing(self, client, admin_headers):
+        response = await client.post(
+            f"{API}/listings/999999/feature", json=featured_until_payload(), headers=admin_headers
+        )
+
+        assert response.status_code == 404
+        assert response.json()["message"] == "Listing not found"
+
+    async def test_unfeature_clears_featured_until(self, client, listing, admin_headers):
+        feature = await client.post(
+            f"{API}/listings/{listing['id']}/feature", json=featured_until_payload(), headers=admin_headers
+        )
+        assert feature.status_code == 200
+
+        response = await client.delete(f"{API}/listings/{listing['id']}/feature", headers=admin_headers)
+
+        assert response.status_code == 204
+
+        follow_up = await client.get(f"{API}/listings/{listing['id']}")
+        assert follow_up.json()["listing"]["featuredUntil"] is None
+
+        search = await client.get(f"{API}/listings/search", params={"isFeatured": "true"})
+        assert search.json()["data"] == []
+
+    async def test_unfeature_unknown_listing(self, client, admin_headers):
+        response = await client.delete(f"{API}/listings/999999/feature", headers=admin_headers)
+
+        assert response.status_code == 404
 
 
 class TestStatsAndCities:

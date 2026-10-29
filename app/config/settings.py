@@ -66,7 +66,7 @@ class Settings(BaseSettings):
         url = urllib.parse.urlunparse(parsed._replace(query=new_query))
         return url
 
-    model_config = {"env_file": "../.env", "env_file_encoding": "utf-8", "extra": "ignore"}
+    model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
 
 
 settings = Settings()

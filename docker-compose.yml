@@ -1,0 +1,12 @@
+services:
+  api:
+    build: .
+    container_name: api
+    env_file:
+      - .env
+    networks:
+      - nginx_proxy
+
+networks:
+  nginx_proxy:
+    external: true

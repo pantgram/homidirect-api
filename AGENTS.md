@@ -6,7 +6,7 @@ FastAPI + SQLAlchemy 2.0 (async) + PostgreSQL REST API. Package manager is **uv*
 
 ```bash
 uv sync                                              # install deps (dev group included)
-uv run pytest                                        # full suite (~5s, no external services)
+uv run pytest                                        # full suite (~20s, 180+ tests, no external services)
 uv run pytest app/tests/test_listings.py -k name     # focused test
 uv run ruff check . && uv run ruff format .          # lint (line length 120; rules E,F,I,N,W)
 uv run uvicorn app.main:app --reload --port 5000     # dev server (docs at /docs)
@@ -14,11 +14,11 @@ uv run alembic upgrade head                          # apply migrations
 uv run alembic revision --autogenerate -m "..."      # generate migration
 ```
 
-No CI, no pre-commit. Work happens on the `develop` branch.
+No CI, no pre-commit. Remote default branch is `main`; active work happens on `clerk_neon_migration` (the Clerk + Neon migration).
 
 ## Environment gotchas
 
-- `app/config/settings.py` loads `.env` from **`../.env`** — the parent of the current working directory, not the repo root. Environment variables take priority over the file, so exporting vars is the reliable way to configure a run.
+- `app/config/settings.py` loads `.env` from the **current working directory** (repo root when run from there). Environment variables take priority over the file, so exporting vars is the reliable way to configure a run.
 - Required settings with no default: `DATABASE_URL`, `CLERK_SECRET_KEY`, `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`, `R2_PUBLIC_URL`. Note `.env.example` is **missing `R2_ACCOUNT_ID`** even though the app requires it.
 - Alembic and the app both import `settings` at module load, so any command touching `app.*` fails without those vars set.
 - `LOG_FILE` defaults to a hardcoded `/home/pantgram/Documents/logs/...` path and `FileHandler` does not create parent dirs — if `import app.main` dies with `FileNotFoundError`, set `LOG_FILE`.
@@ -31,7 +31,7 @@ No CI, no pre-commit. Work happens on the `develop` branch.
 - Sessions auto-commit: `get_db` in `app/config/database.py` commits at request end and rolls back on exception. Services/routers never call `db.commit()`.
 - Errors: raise `AppError` subclasses from `app/utils/errors.py` (`NotFoundError`, `ConflictError`, ...). Handlers emit `{"error", "message"}`; unhandled exceptions are masked as a generic 500 (logged).
 - JSON is camelCase on the wire: every schema extends `CamelModel` (`app/schemas/base.py` — snake_case attributes, camelCase aliases, `populate_by_name=True`); `CamelCaseMiddleware` converts responses too.
-- Auth is delegated to Clerk: session tokens verified by `authenticate_clerk_request` in `app/dependencies/auth.py` — a thin wrapper around the `clerk-backend-api` SDK's `authenticate_request` (passes `accepts_token=["session_token"]` explicitly, `azp` allowlist via `CLERK_AUTHORIZED_PARTIES`, optional networkless verification via `CLERK_JWT_KEY` PEM with JWKS fallback). `get_current_user` never auto-creates profiles — an unknown `sub` is a 401 `Unauthorized`; `POST /auth/sync` is the only profile-creation path. That endpoint takes a `SyncUser` body: profile data (email, names) is fetched from the Clerk Backend API (`app/utils/clerk_admin.py`), while `role` comes from the body (`"LANDLORD" | "TENANT"`, or `null`/omitted → `TENANT` on create, stored role kept on update; `BOTH`/`ADMIN` can never be self-assigned). Clerk webhooks (`POST /api/v1/webhooks/clerk`, Svix-signed, fail-closed) own updates and deletes: `user.created` is a safety-net TENANT upsert only. Design note: roles are app-level, stored in `users.role`, deliberately not mirrored to Clerk publicMetadata — revisit only if landlord teams/agencies become a requirement. RBAC with `require_role`/`require_admin`, ownership with the `verify_*_ownership` helpers in the same file; `ADMIN` bypasses all role/ownership checks.
+- Auth is delegated to Clerk: session tokens verified by `authenticate_clerk_request` in `app/dependencies/auth.py` — a thin wrapper around the `clerk-backend-api` SDK's `authenticate_request` (passes `accepts_token=["session_token"]` explicitly, `azp` allowlist via `CLERK_AUTHORIZED_PARTIES`, optional networkless verification via `CLERK_JWT_KEY` PEM with JWKS fallback). `get_current_user` never auto-creates profiles — an unknown `sub` is a 401 `Unauthorized`, and `BANNED`/`SUSPENDED` users get a 403 (status is checked per request; there is no server-side token revocation). `POST /auth/sync` is the only profile-creation path. That endpoint takes a `SyncUser` body (`app/schemas/auth.py`): profile data (email, names) is fetched from the Clerk Backend API (`app/utils/clerk_admin.py`), while `role` comes from the body (`"LANDLORD" | "TENANT"`, or `null`/omitted → `TENANT` on create, stored role kept on update). Role enforcement is two-layered: the `SyncUser` schema's `Literal["LANDLORD", "TENANT"]` rejects `BOTH`/`ADMIN` at validation, while the service-layer `VALID_ROLES` (`app/schemas/user.py`) includes `BOTH` but still excludes `ADMIN` — `BOTH` is only reachable by direct callers of the service (webhooks pass `role=None`). Clerk webhooks (`POST /api/v1/webhooks/clerk`, Svix-signed, fail-closed) own updates and deletes: `user.created` is a safety-net TENANT upsert only, `user.updated` refreshes names/email (role untouched), `user.deleted` removes the local row (the `DELETE /users/{id}` flow deletes locally then in Clerk, so the webhook arrives as a no-op). Webhook handlers are idempotent and answer 200 — Clerk retries non-2xx deliveries. Design note: roles are app-level, stored in `users.role`, deliberately not mirrored to Clerk publicMetadata — revisit only if landlord teams/agencies become a requirement. RBAC with `require_role`/`require_admin`, ownership with the `verify_*_ownership` helpers in the same file; `ADMIN` bypasses all role/ownership checks.
 
 ## Testing (`app/tests/`)
 

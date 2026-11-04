@@ -12,7 +12,6 @@ from app.config.database import engine
 from app.config.limiter import limiter
 from app.config.logging_config import logger
 from app.config.settings import settings
-from app.middleware.camel_case import CamelCaseMiddleware
 from app.utils.errors import (
     AppError,
     app_error_handler,
@@ -50,7 +49,6 @@ app.add_exception_handler(RequestValidationError, validation_error_handler)
 app.add_exception_handler(AppError, app_error_handler)
 app.add_exception_handler(Exception, generic_error_handler)
 app.add_exception_handler(HTTPException, http_exception_handler)
-app.add_middleware(CamelCaseMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[settings.frontend_url, "http://localhost:8080", "http://localhost:5173"],

@@ -7,7 +7,7 @@ from app.config.logging_config import logger
 from app.models.listing import Listing
 from app.services.listing_image import delete_images_by_listing_id
 from app.utils.errors import NotFoundError
-from app.utils.serializers import get_primary_images, listing_to_dict
+from app.utils.serializers import get_primary_images
 
 
 async def get_stats(db: AsyncSession):
@@ -208,15 +208,12 @@ async def search_listings(db: AsyncSession, params: dict, is_authenticated: bool
     listing_ids = [l.id for l in results]
     primary_images = await get_primary_images(db, listing_ids)
 
-    items = []
     for listing in results:
-        d = listing_to_dict(listing)
-        d["primary_image"] = primary_images.get(listing.id)
-        items.append(d)
+        listing.primary_image = primary_images.get(listing.id)
 
     total_pages = (total + limit - 1) // limit
     return {
-        "data": items,
+        "data": results,
         "pagination": {
             "page": page,
             "limit": limit,
@@ -250,15 +247,12 @@ async def get_listings_by_landlord(db: AsyncSession, landlord_id: int, page: int
     listing_ids = [l.id for l in listings]
     primary_images = await get_primary_images(db, listing_ids)
 
-    items = []
     for listing in listings:
-        d = listing_to_dict(listing)
-        d["primary_image"] = primary_images.get(listing.id)
-        items.append(d)
+        listing.primary_image = primary_images.get(listing.id)
 
     total_pages = (total + limit - 1) // limit
     return {
-        "data": items,
+        "data": listings,
         "pagination": {
             "page": page,
             "limit": limit,

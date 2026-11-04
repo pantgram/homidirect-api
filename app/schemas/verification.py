@@ -70,7 +70,7 @@ class PendingVerificationItemResponse(CamelModel):
     city: str
     landlord_id: int
     verification_status: str
-    created_at: str
+    created_at: datetime
     documents: list[VerificationDocumentResponse]
 
 

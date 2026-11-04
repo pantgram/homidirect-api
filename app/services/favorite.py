@@ -5,7 +5,7 @@ from app.config.logging_config import logger
 from app.models.interested_listing import InterestedListing
 from app.models.listing import Listing
 from app.utils.errors import NotFoundError
-from app.utils.serializers import get_primary_images, listing_to_dict
+from app.utils.serializers import get_primary_images
 
 
 async def get_favorites(db: AsyncSession, user_id: int, page: int = 1, limit: int = 15):
@@ -29,15 +29,12 @@ async def get_favorites(db: AsyncSession, user_id: int, page: int = 1, limit: in
     listing_ids = [l.id for l in listings]
     img_map = await get_primary_images(db, listing_ids)
 
-    items = []
     for l in listings:
-        d = listing_to_dict(l)
-        d["primary_image"] = img_map.get(l.id)
-        items.append(d)
+        l.primary_image = img_map.get(l.id)
 
     total_pages = (total + limit - 1) // limit
     return {
-        "data": items,
+        "data": listings,
         "pagination": {
             "page": page, "limit": limit, "total": total,
             "total_pages": total_pages,

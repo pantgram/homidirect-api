@@ -28,7 +28,6 @@ from app.schemas.listing import (
 )
 from app.services import listing as listing_service
 from app.utils.email import send_contact_owner_email
-from app.utils.serializers import listing_to_dict
 
 router = APIRouter(prefix="/listings", tags=["Listings"])
 
@@ -94,7 +93,7 @@ async def get_my_listings(
 @router.get("/", response_model=ListingListResponse)
 async def get_all_listings(db: AsyncSession = Depends(get_db)):
     listings = await listing_service.get_all_listings(db)
-    return {"listings": [listing_to_dict(l) for l in listings]}
+    return {"listings": listings}
 
 
 @router.get("/{listing_id}", response_model=ListingDetailResponse)
@@ -104,7 +103,7 @@ async def get_listing(
     current_user: User | None = Depends(get_optional_user),
 ):
     listing = await listing_service.get_public_listing(db, listing_id, current_user)
-    return {"listing": listing_to_dict(listing)}
+    return {"listing": listing}
 
 
 @router.post("/", status_code=201, response_model=ListingDetailResponse)
@@ -119,7 +118,7 @@ async def create_listing(
     data = body.model_dump(exclude_none=True)
     listing = await listing_service.create_listing(db, data)
     logger.info("Listing %s created by user %s", listing.id, current_user.id)
-    return {"listing": listing_to_dict(listing)}
+    return {"listing": listing}
 
 @router.patch("/{listing_id}", response_model=ListingDetailResponse)
 async def update_listing(
@@ -132,7 +131,7 @@ async def update_listing(
     data = body.model_dump(exclude_none=True)
     listing = await listing_service.update_listing(db, listing_id, data)
     logger.info("Listing %s updated by user %s", listing_id, current_user.id)
-    return {"listing": listing_to_dict(listing)}
+    return {"listing": listing}
 
 
 @router.delete("/{listing_id}", status_code=204)
@@ -155,7 +154,7 @@ async def feature_listing(
 ):
     listing = await listing_service.set_featured_until(db, listing_id, body.featured_until)
     logger.info("Listing %s featured until %s by admin %s", listing_id, body.featured_until, current_user.id)
-    return {"listing": listing_to_dict(listing)}
+    return {"listing": listing}
 
 
 @router.delete("/{listing_id}/feature", status_code=204)
@@ -180,11 +179,12 @@ async def contact_owner(
     landlord_r = await db.execute(select(UserModel).where(UserModel.id == listing.landlord_id))
     landlord = landlord_r.scalar_one_or_none()
     if landlord:
+        sender_name = f"{current_user.first_name} {current_user.last_name}".strip()
         background_tasks.add_task(
             send_contact_owner_email,
             landlord.email,
-            body.name,
-            body.email,
+            sender_name,
+            current_user.email,
             body.phone or "",
             body.message,
         )

@@ -39,9 +39,7 @@ class TestCreateListing:
         assert body["landlordId"] == landlord["user"]["id"]
 
     async def test_tenant_cannot_create_listing(self, client, tenant_headers):
-        response = await client.post(
-            f"{API}/listings/", json=listing_payload(), headers=tenant_headers
-        )
+        response = await client.post(f"{API}/listings/", json=listing_payload(), headers=tenant_headers)
 
         assert response.status_code == 403
         assert response.json()["message"] == "Insufficient permissions"
@@ -60,9 +58,7 @@ class TestCreateListing:
         assert "propertyType" in paths
 
     async def test_negative_price_rejected_by_db_constraint(self, client, landlord_headers):
-        response = await client.post(
-            f"{API}/listings/", json=listing_payload(price=-100), headers=landlord_headers
-        )
+        response = await client.post(f"{API}/listings/", json=listing_payload(price=-100), headers=landlord_headers)
 
         assert response.status_code == 500
         assert response.json()["error"] == "Internal Server Error"
@@ -158,9 +154,7 @@ class TestUpdateListing:
         assert response.json()["message"] == "You do not own this listing"
 
     async def test_admin_can_update_any_listing(self, client, listing, admin_headers):
-        response = await client.patch(
-            f"{API}/listings/{listing['id']}", json={"price": 777.0}, headers=admin_headers
-        )
+        response = await client.patch(f"{API}/listings/{listing['id']}", json={"price": 777.0}, headers=admin_headers)
 
         assert response.status_code == 200
         assert response.json()["listing"]["price"] == 777.0
@@ -445,3 +439,57 @@ class TestContactOwner:
         )
 
         assert response.status_code == 404
+
+
+PRIVATE_FIELDS = {"landlordId", "verifiedBy", "publicationStatus", "viewsCount", "landlordPhone"}
+
+
+class TestPrivateFieldVisibility:
+    async def test_detail_hides_private_fields_from_anonymous(self, client, listing):
+        body = (await client.get(f"{API}/listings/{listing['id']}")).json()["listing"]
+
+        assert PRIVATE_FIELDS.isdisjoint(body)
+        assert body["titleEl"] and body["price"]
+
+    async def test_detail_hides_private_fields_from_non_owner(self, client, listing, tenant_headers):
+        body = (await client.get(f"{API}/listings/{listing['id']}", headers=tenant_headers)).json()["listing"]
+
+        assert PRIVATE_FIELDS.isdisjoint(body)
+
+    async def test_detail_shows_private_fields_to_owner(self, client, listing, landlord, landlord_headers):
+        body = (await client.get(f"{API}/listings/{listing['id']}", headers=landlord_headers)).json()["listing"]
+
+        assert PRIVATE_FIELDS <= set(body)
+        assert body["landlordId"] == landlord["user"]["id"]
+        assert body["landlordPhone"] == "+306900000000"
+
+    async def test_detail_shows_private_fields_to_admin(self, client, listing, admin_headers):
+        body = (await client.get(f"{API}/listings/{listing['id']}", headers=admin_headers)).json()["listing"]
+
+        assert PRIVATE_FIELDS <= set(body)
+
+    async def test_search_always_hides_private_fields(
+        self, client, listing, landlord_headers, tenant_headers, admin_headers
+    ):
+        for headers in ({}, tenant_headers, landlord_headers, admin_headers):
+            items = (await client.get(f"{API}/listings/search", headers=headers)).json()["data"]
+
+            assert len(items) == 1
+            assert PRIVATE_FIELDS.isdisjoint(items[0])
+            assert "primaryImage" in items[0]
+
+    async def test_my_listings_shows_private_fields(self, client, listing, landlord_headers):
+        items = (await client.get(f"{API}/listings/my-listings", headers=landlord_headers)).json()["data"]
+
+        assert PRIVATE_FIELDS <= set(items[0])
+
+    async def test_create_response_shows_private_fields(self, listing):
+        assert PRIVATE_FIELDS <= set(listing)
+
+    async def test_favorites_hide_private_fields(self, client, listing, tenant_headers):
+        await client.post(f"{API}/favorites/{listing['id']}", headers=tenant_headers)
+
+        items = (await client.get(f"{API}/favorites/", headers=tenant_headers)).json()["data"]
+
+        assert len(items) == 1
+        assert PRIVATE_FIELDS.isdisjoint(items[0])

@@ -33,7 +33,6 @@ def authenticate_clerk_request(request: Request) -> dict:
             accepts_token=["session_token"],
         ),
     )
-    logger.info("Clerk token verification state: %s", state)
     if not state.is_signed_in:
         reason = state.reason.name if state.reason is not None else state.status.name
         logger.warning("Clerk token verification failed: %s", reason)

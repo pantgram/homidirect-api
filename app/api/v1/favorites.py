@@ -5,25 +5,25 @@ from app.config.database import get_db
 from app.config.logging_config import logger
 from app.dependencies.auth import get_current_user
 from app.models.user import User
-from app.schemas.listing import PaginatedListingSearchResponse
+from app.schemas.listing import PaginatedListingSearchPublicResponse
 from app.schemas.user import (
     AddFavoriteResponse,
     CheckFavoriteResponse,
     FavoriteIdsResponse,
     RemoveFavoriteResponse,
 )
-from app.services import favorite as fav_service
+from app.services.favorite import (get_favorites, get_favorite_ids, check_favorite, add_favorite, remove_favorite) 
 
 router = APIRouter(prefix="/favorites", tags=["Favorites"])
 
 
-@router.get("/", response_model=PaginatedListingSearchResponse)
+@router.get("/", response_model=PaginatedListingSearchPublicResponse)
 async def get_favorites(
     page: int = 1, limit: int = 15,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return await fav_service.get_favorites(db, current_user.id, page, limit)
+    return await get_favorites(db, current_user.id, page, limit)
 
 
 @router.get("/ids", response_model=FavoriteIdsResponse)
@@ -31,7 +31,7 @@ async def get_favorite_ids(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    ids = await fav_service.get_favorite_ids(db, current_user.id)
+    ids = await get_favorite_ids(db, current_user.id)
     return {"favorite_ids": ids}
 
 
@@ -41,7 +41,7 @@ async def check_favorite(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    is_fav = await fav_service.check_favorite(db, current_user.id, listing_id)
+    is_fav = await check_favorite(db, current_user.id, listing_id)
     return {"is_favorited": is_fav}
 
 
@@ -51,7 +51,7 @@ async def add_favorite(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    added = await fav_service.add_favorite(db, current_user.id, listing_id)
+    added = await add_favorite(db, current_user.id, listing_id)
     logger.info("Listing %s favorited by user %s (added=%s)", listing_id, current_user.id, added)
     return {"success": True, "added": added, "message": "Favorite added" if added else "Already favorited"}
 
@@ -62,6 +62,6 @@ async def remove_favorite(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    await fav_service.remove_favorite(db, current_user.id, listing_id)
+    await remove_favorite(db, current_user.id, listing_id)
     logger.info("Listing %s removed from favorites by user %s", listing_id, current_user.id)
     return {"removed": True}

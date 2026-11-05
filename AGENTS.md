@@ -23,7 +23,7 @@ The lint baseline is **not clean**: `ruff check .` reports ~50 pre-existing viol
 ## Environment gotchas
 
 - `app/config/settings.py` loads `.env` from the **current working directory** (repo root when run from there). Environment variables take priority over the file, so exporting vars is the reliable way to configure a run.
-- Required settings with no default: `DATABASE_URL`, `CLERK_SECRET_KEY`, `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`, `R2_PUBLIC_URL`. Note `.env.example` is **missing `R2_ACCOUNT_ID`** even though the app requires it.
+- Required settings with no default: `DATABASE_URL`, `CLERK_SECRET_KEY`, `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`, `R2_URL`. Note `.env.example` is **missing `R2_ACCOUNT_ID`** even though the app requires it.
 - Alembic and the app both import `settings` at module load, so any command touching `app.*` fails without those vars set.
 - `LOG_FILE` defaults to a hardcoded `/home/pantgram/Documents/logs/...` path and `FileHandler` does not create parent dirs — if `import app.main` dies with `FileNotFoundError`, set `LOG_FILE`.
 - `settings.async_database_url` strips PG-only query params (`sslmode`, ...) from `DATABASE_URL` for asyncpg; use it, not `database_url`, for engines.

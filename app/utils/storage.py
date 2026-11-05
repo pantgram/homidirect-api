@@ -13,7 +13,7 @@ _s3_client = boto3.client(
 )
 
 _BUCKET = settings.r2_bucket_name
-_PUBLIC_URL = settings.r2_public_url
+_URL = settings.r2_url
 
 
 def upload_to_r2(key: str, body: bytes, content_type: str) -> str:
@@ -24,7 +24,7 @@ def upload_to_r2(key: str, body: bytes, content_type: str) -> str:
         ContentType=content_type,
     )
     logger.info("Uploaded object %s to bucket %s", key, _BUCKET)
-    return f"{_PUBLIC_URL}/{key}"
+    return f"{_URL}/{key}"
 
 
 def delete_from_r2(key: str) -> None:
@@ -39,11 +39,11 @@ def copy_in_r2(source_key: str, dest_key: str) -> str:
         Key=dest_key,
     )
     logger.info("Copied object %s to %s in bucket %s", source_key, dest_key, _BUCKET)
-    return f"{_PUBLIC_URL}/{dest_key}"
+    return f"{_URL}/{dest_key}"
 
 
 def get_key_from_url(url: str) -> str:
-    prefix = f"{_PUBLIC_URL}/"
+    prefix = f"{_URL}/"
     if url.startswith(prefix):
         return url[len(prefix):]
     return url

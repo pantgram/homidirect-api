@@ -19,7 +19,9 @@ class ListingImageBasic(CamelModel):
     created_at: datetime
 
 
-class ListingResponse(CamelModel):
+class ListingPublicResponse(CamelModel):
+    """Listing fields visible to any viewer."""
+
     id: int
     price: float
     city: str
@@ -35,7 +37,6 @@ class ListingResponse(CamelModel):
     furnished: bool
     date_available: date
     date_built: int
-    views_count: int
     country: str | None
     address: str | None
     latitude: float | None
@@ -43,17 +44,27 @@ class ListingResponse(CamelModel):
     property_type: str
     created_at: datetime
     updated_at: datetime
-    landlord_id: int
-    landlord_phone: str | None
     verification_status: str
     verified_at: datetime | None
-    verified_by: int | None
     featured_until: datetime | None
     title_el: str
     title_en: str | None
     description_el: str
     description_en: str | None
+
+
+class ListingResponse(ListingPublicResponse):
+    """Full listing: adds the fields only the owner or an ADMIN may see."""
+
+    views_count: int
+    landlord_id: int
+    landlord_phone: str | None
+    verified_by: int | None
     publication_status: status | None
+
+
+class ListingSearchPublicResponse(ListingPublicResponse):
+    primary_image: ListingImageBasic | None = None
 
 
 class ListingSearchResponse(ListingResponse):
@@ -174,9 +185,14 @@ class ListingIdParam(CamelModel):
 
 
 class ListingDetailResponse(CamelModel):
-    listing: ListingResponse
+    listing: ListingResponse | ListingPublicResponse
 
 
 class PaginatedListingSearchResponse(CamelModel):
     data: list[ListingSearchResponse]
+    pagination: Pagination
+
+
+class PaginatedListingSearchPublicResponse(CamelModel):
+    data: list[ListingSearchPublicResponse]
     pagination: Pagination

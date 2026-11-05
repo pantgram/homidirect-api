@@ -18,7 +18,7 @@ _TEST_ENV = {
     "R2_ACCESS_KEY_ID": "test-key",
     "R2_SECRET_ACCESS_KEY": "test-secret",
     "R2_BUCKET_NAME": "test-bucket",
-    "R2_PUBLIC_URL": "http://localhost:9000/test-bucket",
+    "R2_URL": "http://localhost:9000/test-bucket",
     "SMTP_HOST": "localhost",
     "SMTP_PORT": "1025",
     "SMTP_USER": "",

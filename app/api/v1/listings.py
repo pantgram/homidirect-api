@@ -21,7 +21,10 @@ from app.schemas.listing import (
     CreateListingRequest,
     FeatureListingRequest,
     ListingDetailResponse,
+    ListingPublicResponse,
+    ListingResponse,
     ListingStatsResponse,
+    PaginatedListingSearchPublicResponse,
     PaginatedListingSearchResponse,
     UpdateListingRequest,
 )
@@ -36,7 +39,7 @@ async def get_stats(db: AsyncSession = Depends(get_db)):
     return await listing_service.get_stats(db)
 
 
-@router.get("/search", response_model=PaginatedListingSearchResponse)
+@router.get("/search", response_model=PaginatedListingSearchPublicResponse)
 async def search_listings(
     q: str | None = None,
     property_type: str | None = Query(default=None, alias="propertyType"),
@@ -96,7 +99,11 @@ async def get_listing(
     current_user: User | None = Depends(get_optional_user),
 ):
     listing = await listing_service.get_public_listing(db, listing_id, current_user)
-    return {"listing": listing}
+    is_owner_or_admin = current_user is not None and (
+        current_user.role == "ADMIN" or listing.landlord_id == current_user.id
+    )
+    schema = ListingResponse if is_owner_or_admin else ListingPublicResponse
+    return {"listing": schema.model_validate(listing)}
 
 
 @router.post("/", status_code=201, response_model=ListingDetailResponse)

@@ -34,7 +34,7 @@ def _format_doc(d):
         "url": d.url,
         "file_name": d.file_name,
         "uploaded_by": d.uploaded_by,
-        "created_at": d.created_at.isoformat(),
+        "created_at": d.created_at,
     }
 
 
@@ -46,7 +46,7 @@ def _format_history(h):
         "new_status": h.new_status,
         "notes": h.notes,
         "reviewed_by": h.reviewed_by,
-        "created_at": h.created_at.isoformat(),
+        "created_at": h.created_at,
     }
 
 

@@ -27,7 +27,7 @@ async def get_images(
             "id": i.id,
             "url": i.url,
             "listing_id": i.listing_id,
-            "created_at": i.created_at.isoformat(),
+            "created_at": i.created_at,
         }
         for i in images
     ]}
@@ -50,7 +50,7 @@ async def upload_image(
         "id": img.id,
         "url": img.url,
         "listing_id": img.listing_id,
-        "created_at": img.created_at.isoformat(),
+        "created_at": img.created_at,
     }}
 
 

@@ -160,8 +160,6 @@ class FeatureListingRequest(CamelModel):
 
 
 class ContactOwnerRequest(CamelModel):
-    name: str
-    email: str
     phone: str | None = None
     message: str
 

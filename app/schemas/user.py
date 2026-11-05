@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from app.schemas.base import CamelModel
 
 # Allowlist for roles that may arrive in the /auth/sync request body
@@ -10,7 +12,7 @@ class UserResponse(CamelModel):
     first_name: str
     last_name: str
     email: str
-    created_at: str
+    created_at: datetime
 
 
 class UserWithRoleResponse(CamelModel):
@@ -19,7 +21,7 @@ class UserWithRoleResponse(CamelModel):
     last_name: str
     email: str
     role: str
-    created_at: str
+    created_at: datetime
 
 
 class UserIdParam(CamelModel):

@@ -10,25 +10,6 @@ class Pagination(CamelModel):
     has_previous_page: bool
 
 
-class PaginatedResponse(CamelModel):
-    data: list
-    pagination: Pagination
-
-    model_config = {
-        "alias_generator": lambda name: (
-            name[0] + "".join(part.capitalize() for part in name.split("_")[1:])
-            if "_" in name else name
-        ),
-        "populate_by_name": True,
-        "from_attributes": True,
-    }
-
-
-class ApiResponse(CamelModel):
-    data: dict | None = None
-    message: str | None = None
-
-
 class MessageResponse(CamelModel):
     message: str
 

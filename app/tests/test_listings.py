@@ -415,7 +415,7 @@ class TestContactOwner:
     async def test_contact_owner_queues_email(self, client, listing, tenant_headers, mock_external_services):
         response = await client.post(
             f"{API}/listings/{listing['id']}/contact",
-            json={"name": "Interested Person", "email": "interested@example.com", "message": "Is this available?"},
+            json={"message": "Is this available?"},
             headers=tenant_headers,
         )
 
@@ -424,12 +424,13 @@ class TestContactOwner:
         mock_external_services["contact_owner"].assert_awaited_once()
         args = mock_external_services["contact_owner"].await_args.args
         assert args[0] == "landlord@example.com"
-        assert args[1] == "Interested Person"
+        assert args[1] == "Test User"
+        assert args[2] == "tenant@example.com"
 
     async def test_contact_requires_authentication(self, client, listing):
         response = await client.post(
             f"{API}/listings/{listing['id']}/contact",
-            json={"name": "X", "email": "x@example.com", "message": "hi"},
+            json={"message": "hi"},
         )
 
         assert response.status_code == 401
@@ -437,7 +438,7 @@ class TestContactOwner:
     async def test_contact_unknown_listing(self, client, tenant_headers):
         response = await client.post(
             f"{API}/listings/999999/contact",
-            json={"name": "X", "email": "x@example.com", "message": "hi"},
+            json={"message": "hi"},
             headers=tenant_headers,
         )
 

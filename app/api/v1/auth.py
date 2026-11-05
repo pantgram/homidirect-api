@@ -56,6 +56,6 @@ async def sync_profile(
             "last_name": user.last_name,
             "email": user.email,
             "role": user.role,
-            "created_at": user.created_at.isoformat() if user.created_at else None,
+            "created_at": user.created_at,
         }
     }

@@ -21,7 +21,7 @@ def _format_doc(d):
         "url": d.url,
         "file_name": d.file_name,
         "uploaded_by": d.uploaded_by,
-        "created_at": d.created_at.isoformat(),
+        "created_at": d.created_at,
     }
 
 
@@ -33,7 +33,7 @@ def _format_history(h):
         "new_status": h.new_status,
         "notes": h.notes,
         "reviewed_by": h.reviewed_by,
-        "created_at": h.created_at.isoformat(),
+        "created_at": h.created_at,
     }
 
 
@@ -49,7 +49,7 @@ async def get_verification_status(db: AsyncSession, listing_id: int):
     return {
         "listing_id": listing_id,
         "verification_status": listing.verification_status,
-        "verified_at": listing.verified_at.isoformat() if listing.verified_at else None,
+        "verified_at": listing.verified_at,
         "documents": [_format_doc(d) for d in docs_r.scalars().all()],
         "history": [_format_history(h) for h in history_r.scalars().all()],
         "can_resubmit": listing.verification_status == "REJECTED",
@@ -165,7 +165,7 @@ async def get_pending_verifications(db: AsyncSession):
         items.append({
             "id": l.id, "title_el": l.title_el, "city": l.city,
             "landlord_id": l.landlord_id, "verification_status": l.verification_status,
-            "created_at": l.created_at.isoformat() if l.created_at else None,
+            "created_at": l.created_at,
             "documents": [_format_doc(d) for d in l.verification_documents],
         })
     return {"listings": items}

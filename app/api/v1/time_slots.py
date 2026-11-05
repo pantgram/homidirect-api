@@ -34,10 +34,10 @@ def _format_slot(s, include_private: bool) -> dict:
         "status": s.status,
         "listing_id": s.listing_id,
         "landlord_id": s.listing.landlord_id,
-        "start_time": s.start_time.isoformat(),
-        "end_time": (s.start_time + SLOT_DURATION).isoformat(),
+        "start_time": s.start_time,
+        "end_time": s.start_time + SLOT_DURATION,
         "type": s.type,
-        "created_at": s.created_at.isoformat(),
+        "created_at": s.created_at,
         "is_booked": s.status != "OPEN",
     }
     if include_private:

@@ -23,7 +23,7 @@ async def get_me(current_user: User = Depends(get_current_user)):
         "last_name": current_user.last_name,
         "email": current_user.email,
         "role": current_user.role,
-        "created_at": current_user.created_at.isoformat() if current_user.created_at else None,
+        "created_at": current_user.created_at,
     }
 
 
@@ -37,7 +37,7 @@ async def get_user(user_id: int, db: AsyncSession = Depends(get_db), current_use
         "last_name": row.last_name,
         "email": row.email,
         "role": row.role,
-        "created_at": row.created_at.isoformat() if row.created_at else None,
+        "created_at": row.created_at,
     }}
 
 

@@ -2,11 +2,13 @@
 
 FastAPI + SQLAlchemy 2.0 (async) + PostgreSQL REST API. Package manager is **uv** (always `uv run ...`, never plain `python`/`pytest`).
 
+`CLAUDE.md` is just a pointer to this file — update this file, not that one.
+
 ## Commands
 
 ```bash
 uv sync                                              # install deps (dev group included)
-uv run pytest                                        # full suite (~20s, 180+ tests, no external services)
+uv run pytest                                        # full suite (~10s, 182 tests, no external services)
 uv run pytest app/tests/test_listings.py -k name     # focused test
 uv run ruff check . && uv run ruff format .          # lint (line length 120; rules E,F,I,N,W)
 uv run uvicorn app.main:app --reload --port 5000     # dev server (docs at /docs)
@@ -14,7 +16,9 @@ uv run alembic upgrade head                          # apply migrations
 uv run alembic revision --autogenerate -m "..."      # generate migration
 ```
 
-No CI, no pre-commit. Remote default branch is `main`; active work happens on `clerk_neon_migration` (the Clerk + Neon migration).
+No CI, no pre-commit. Remote default branch is `main`; active work happens on `clerk_neon_migration` (the Clerk + Neon migration, stacked on `develop`).
+
+The lint baseline is **not clean**: `ruff check .` reports ~50 pre-existing violations (long lines in models/migrations, import order, `l` variable names). Don't mass-fix them and don't treat `ruff check` failures as proof your change broke something — scope lint fixes to your own diff.
 
 ## Environment gotchas
 
@@ -30,15 +34,30 @@ No CI, no pre-commit. Remote default branch is `main`; active work happens on `c
 - Adding a domain requires touching: new router in `app/api/v1/`, registration in `app/api/v1/__init__.py` (everything mounts under `/api/v1`), tag in `openapi_tags` in `app/main.py`, and model import in `app/models/__init__.py` (needed for Alembic autogenerate and test `create_all`).
 - Sessions auto-commit: `get_db` in `app/config/database.py` commits at request end and rolls back on exception. Services/routers never call `db.commit()`.
 - Errors: raise `AppError` subclasses from `app/utils/errors.py` (`NotFoundError`, `ConflictError`, ...). Handlers emit `{"error", "message"}`; unhandled exceptions are masked as a generic 500 (logged).
-- JSON is camelCase on the wire: every schema extends `CamelModel` (`app/schemas/base.py` — snake_case attributes, camelCase aliases, `populate_by_name=True`); aliases via `response_model` are the **only** serialization path (the old `CamelCaseMiddleware` is gone). Every route must declare `response_model` — a route without one would leak snake_case keys (guarded by the contract tests in `app/tests/test_response_conventions.py`). Return ORM rows or raw `datetime`/`date` values directly; Pydantic serializes them (`from_attributes=True` is set on `CamelModel`). Eagerly load (`joinedload`/`selectinload`) any relationship a schema touches to avoid `MissingGreenlet` in async context.
-- Auth is delegated to Clerk: session tokens verified by `authenticate_clerk_request` in `app/dependencies/auth.py` — a thin wrapper around the `clerk-backend-api` SDK's `authenticate_request` (passes `accepts_token=["session_token"]` explicitly, `azp` allowlist via `CLERK_AUTHORIZED_PARTIES`, optional networkless verification via `CLERK_JWT_KEY` PEM with JWKS fallback). `get_current_user` never auto-creates profiles — an unknown `sub` is a 401 `Unauthorized`, and `BANNED`/`SUSPENDED` users get a 403 (status is checked per request; there is no server-side token revocation). `POST /auth/sync` is the only profile-creation path. That endpoint takes a `SyncUser` body (`app/schemas/auth.py`): profile data (email, names) is fetched from the Clerk Backend API (`app/utils/clerk_admin.py`), while `role` comes from the body (`"LANDLORD" | "TENANT"`, or `null`/omitted → `TENANT` on create, stored role kept on update). Role enforcement is two-layered: the `SyncUser` schema's `Literal["LANDLORD", "TENANT"]` rejects `BOTH`/`ADMIN` at validation, while the service-layer `VALID_ROLES` (`app/schemas/user.py`) includes `BOTH` but still excludes `ADMIN` — `BOTH` is only reachable by direct callers of the service (webhooks pass `role=None`). Clerk webhooks (`POST /api/v1/webhooks/clerk`, Svix-signed, fail-closed) own updates and deletes: `user.created` is a safety-net TENANT upsert only, `user.updated` refreshes names/email (role untouched), `user.deleted` removes the local row (the `DELETE /users/{id}` flow deletes locally then in Clerk, so the webhook arrives as a no-op). Webhook handlers are idempotent and answer 200 — Clerk retries non-2xx deliveries. Design note: roles are app-level, stored in `users.role`, deliberately not mirrored to Clerk publicMetadata — revisit only if landlord teams/agencies become a requirement. RBAC with `require_role`/`require_admin`, ownership with the `verify_*_ownership` helpers in the same file; `ADMIN` bypasses all role/ownership checks.
+
+### camelCase contract
+
+- Every schema extends `CamelModel` (`app/schemas/base.py` — snake_case attributes, camelCase aliases, `populate_by_name=True`); aliases via `response_model` are the **only** serialization path (the old `CamelCaseMiddleware` is gone).
+- Every route must declare `response_model` — a route without one would leak snake_case keys (guarded by the contract tests in `app/tests/test_response_conventions.py`).
+- Return ORM rows or raw `datetime`/`date` values directly; Pydantic serializes them (`from_attributes=True` is set on `CamelModel`).
+- Eagerly load (`joinedload`/`selectinload`) any relationship a schema touches to avoid `MissingGreenlet` in async context.
+
+### Auth (Clerk)
+
+- Session tokens verified by `authenticate_clerk_request` in `app/dependencies/auth.py` — a thin wrapper around the `clerk-backend-api` SDK's `authenticate_request` (passes `accepts_token=["session_token"]` explicitly, `azp` allowlist via `CLERK_AUTHORIZED_PARTIES`, optional networkless verification via `CLERK_JWT_KEY` PEM with JWKS fallback).
+- `get_current_user` never auto-creates profiles — an unknown `sub` is a 401 `Unauthorized`, and `BANNED`/`SUSPENDED` users get a 403 (status is checked per request; there is no server-side token revocation). For public routes that optionally personalize, use `get_optional_user` (returns `None` instead of raising; banned/suspended treated as anonymous).
+- `POST /auth/sync` is the only profile-creation path. It takes a `SyncUser` body (`app/schemas/auth.py`): profile data (email, names) is fetched from the Clerk Backend API (`app/utils/clerk_admin.py`), while `role` comes from the body (`"LANDLORD" | "TENANT"`, or `null`/omitted → `TENANT` on create, stored role kept on update).
+- Role enforcement is two-layered: the `SyncUser` schema's `Literal["LANDLORD", "TENANT"]` rejects `BOTH`/`ADMIN` at validation, while the service-layer `VALID_ROLES` (`app/schemas/user.py`) includes `BOTH` but still excludes `ADMIN` — `BOTH` is only reachable by direct callers of the service (webhooks pass `role=None`).
+- Clerk webhooks (`POST /api/v1/webhooks/clerk`, Svix-signed, fail-closed) own updates and deletes: `user.created` is a safety-net TENANT upsert only, `user.updated` refreshes names/email (role untouched), `user.deleted` removes the local row (the `DELETE /users/{id}` flow deletes locally then in Clerk, so the webhook arrives as a no-op). Handlers are idempotent and answer 200 — Clerk retries non-2xx deliveries.
+- Design note: roles are app-level, stored in `users.role`, deliberately not mirrored to Clerk publicMetadata — revisit only if landlord teams/agencies become a requirement.
+- RBAC with `require_role`/`require_admin`, ownership with the `verify_*_ownership` helpers in the same file; `ADMIN` bypasses all role/ownership checks.
 
 ## Testing (`app/tests/`)
 
 - `conftest.py` injects fake env vars **before** importing the app, using `os.environ.setdefault` — real exported env vars leak into tests.
 - Postgres → SQLite compatibility is patched in conftest: SQLite server default **and** rewritten CHECK constraint for `Listing.date_built`, full-text GIN `TextClause` indexes dropped from metadata. If you add Postgres-only constructs to models, update conftest or the suite breaks.
 - Autouse fixtures disable rate limiting and mock email/R2/Clerk Backend API/webhook signatures. Mocks patch the name **inside the consuming module** (e.g. `verification_service.upload_to_r2`, since services do `from app.utils.storage import upload_to_r2`) — wire new external calls into `mock_external_services` in conftest.
-- JWT verification is replaced with HS256 test tokens (Clerk-shaped claims, `sub="user_<hex>"`); profile data comes from a registry-backed `fetch_clerk_user` mock that `sync_user` feeds. Use the helpers/fixtures: `make_test_token`, `sync_user`, `create_db_user`, `auth_headers_for`, `create_listing`, `landlord`/`tenant`/`admin` (+`*_headers`).
+- JWT verification is replaced with HS256 test tokens (Clerk-shaped claims, `sub="user_<hex>"`); profile data comes from a registry-backed `fetch_clerk_user` mock that `sync_user` feeds. Use the helpers/fixtures: `make_test_token`, `sync_user`, `create_db_user`, `auth_headers_for`, `headers_from_tokens`, `create_listing`, `landlord`/`tenant`/`admin` (+`*_headers`).
 
 ## Alembic
 

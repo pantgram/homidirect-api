@@ -21,7 +21,6 @@ from app.schemas.listing import (
     CreateListingRequest,
     FeatureListingRequest,
     ListingDetailResponse,
-    ListingListResponse,
     ListingStatsResponse,
     PaginatedListingSearchResponse,
     UpdateListingRequest,
@@ -88,12 +87,6 @@ async def get_my_listings(
     current_user: User = Depends(require_role("LANDLORD", "BOTH")),
 ):
     return await listing_service.get_listings_by_landlord(db, current_user.id, page, limit)
-
-
-@router.get("/", response_model=ListingListResponse)
-async def get_all_listings(db: AsyncSession = Depends(get_db)):
-    listings = await listing_service.get_all_listings(db)
-    return {"listings": listings}
 
 
 @router.get("/{listing_id}", response_model=ListingDetailResponse)

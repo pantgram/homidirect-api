@@ -177,10 +177,6 @@ class ListingDetailResponse(CamelModel):
     listing: ListingResponse
 
 
-class ListingListResponse(CamelModel):
-    listings: list[ListingResponse]
-
-
 class PaginatedListingSearchResponse(CamelModel):
     data: list[ListingSearchResponse]
     pagination: Pagination

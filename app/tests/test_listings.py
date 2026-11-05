@@ -125,14 +125,16 @@ class TestGetListing:
         assert response.status_code == 404
         assert response.json() == {"error": "NotFoundError", "message": "Listing not found"}
 
-    async def test_get_all_listings(self, client, landlord_headers):
-        await create_listing(client, landlord_headers, titleEl="One")
-        await create_listing(client, landlord_headers, titleEl="Two")
+    async def test_search_without_params_returns_all_active_listings(self, client, landlord_headers):
+        one = await create_listing(client, landlord_headers, titleEl="One")
+        two = await create_listing(client, landlord_headers, titleEl="Two")
 
-        response = await client.get(f"{API}/listings/")
+        response = await client.get(f"{API}/listings/search")
 
         assert response.status_code == 200
-        assert len(response.json()["listings"]) == 2
+        body = response.json()
+        assert body["pagination"]["total"] == 2
+        assert {item["id"] for item in body["data"]} == {one["id"], two["id"]}
 
 
 class TestUpdateListing:

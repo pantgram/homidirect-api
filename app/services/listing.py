@@ -24,11 +24,6 @@ async def get_stats(db: AsyncSession):
     return {"active_listings_count": r1.scalar() or 0, "property_owners_count": r2.scalar() or 0}
 
 
-async def get_all_listings(db: AsyncSession):
-    result = await db.execute(select(Listing).where(Listing.publication_status == "ACTIVE"))
-    return result.scalars().all()
-
-
 async def get_listing_by_id(db: AsyncSession, listing_id: int):
     result = await db.execute(select(Listing).where(Listing.id == listing_id))
     listing = result.scalar_one_or_none()
